@@ -307,7 +307,11 @@ export default function RunningDashboard() {
   };
 
   const cardStyle = {
-    ...GLASS_STYLE,
+    background: "rgba(255,255,255,0.04)",
+    backdropFilter: "blur(12px)",
+    WebkitBackdropFilter: "blur(12px)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    borderRadius: 16,
     padding: "20px 24px",
   };
 
