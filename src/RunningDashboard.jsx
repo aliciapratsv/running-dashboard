@@ -75,7 +75,7 @@ const RACE_DISTANCES = [
 ];
 
 const HR_ZONES = [
-  { zone: "Z1", name: "Recuperación",  pct: [0.50, 0.60], color: "#4a9eff", desc: "Trote muy suave, conversación fluida" },
+  { zone: "Z1", name: "Recuperación",  pct: [0.50, 0.60], color: VIOLET, desc: "Trote muy suave, conversación fluida" },
   { zone: "Z2", name: "Aeróbico base", pct: [0.60, 0.70], color: "#4caf50", desc: "Base aeróbica, fondos largos" },
   { zone: "Z3", name: "Tempo",         pct: [0.70, 0.80], color: "#d4c017", desc: "Ritmo de carrera, esfuerzo moderado" },
   { zone: "Z4", name: "Umbral",        pct: [0.80, 0.90], color: "#e88600", desc: "Intervalos, zona de lactato" },
@@ -297,8 +297,8 @@ export default function RunningDashboard() {
   }, [filtered]);
 
   const inputStyle = {
-    background: CARD_BG,
-    border: `1px solid ${BORDER}`,
+    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(255,255,255,0.1)",
     color: TEXT_PRIMARY,
     borderRadius: 8,
     padding: "6px 12px",
@@ -307,9 +307,7 @@ export default function RunningDashboard() {
   };
 
   const cardStyle = {
-    background: CARD_BG,
-    border: `1px solid ${BORDER}`,
-    borderRadius: 12,
+    ...GLASS_STYLE,
     padding: "20px 24px",
   };
 
@@ -554,18 +552,23 @@ Ejemplo de formato esperado:
   }, [dateFrom, dateTo]);
 
   return (
-    <div style={{ background: DARK_BG, minHeight: "100vh", fontFamily: "system-ui, sans-serif", color: TEXT_PRIMARY }}>
+    <>
+    <style>{`
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+      * { font-family: 'Inter', system-ui, sans-serif !important; }
+    `}</style>
+    <div style={{ background: DARK_BG, minHeight: "100vh", backgroundImage: "radial-gradient(ellipse at 20% 50%, rgba(198,241,53,0.04) 0%, transparent 60%), radial-gradient(ellipse at 80% 20%, rgba(191,95,255,0.04) 0%, transparent 60%)", fontFamily: "system-ui, sans-serif", color: TEXT_PRIMARY }}>
 
       {/* ── WELCOME SCREEN ── */}
       {!csvData && !showDemo && (
-        <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"40px 24px" }}>
+        <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"40px 24px", backgroundImage:"radial-gradient(ellipse at 30% 40%, rgba(198,241,53,0.06) 0%, transparent 50%), radial-gradient(ellipse at 70% 70%, rgba(191,95,255,0.06) 0%, transparent 50%)" }}>
           <div style={{ marginBottom:24, textAlign:"center" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:10, marginBottom:12 }}>
               <Activity size={28} color={ORANGE} />
-              <span style={{ fontSize:26, fontWeight:800, letterSpacing:-0.5 }}>Running Stats</span>
+              <span style={{ fontSize:42, fontWeight:900, letterSpacing:-1 }}>Runalyze</span>
             </div>
             <p style={{ fontSize:15, color:TEXT_MUTED, maxWidth:380, lineHeight:1.6, margin:"0 auto" }}>
-              Tu dashboard personal de running. Cargá tu CSV de Strava o Garmin para ver tus estadísticas, VO₂ máx, zonas de FC y más.
+              ¡Bienvenido a tu dashboard personal de running! Cargá tus datos para comenzar.
             </p>
           </div>
 
@@ -574,7 +577,7 @@ Ejemplo de formato esperado:
             onDragLeave={() => setIsDragging(false)}
             onDrop={e => { e.preventDefault(); setIsDragging(false); handleFile(e.dataTransfer.files[0]); }}
             onClick={() => document.getElementById("csv-input").click()}
-            style={{ width:"100%", maxWidth:460, border:`2px dashed ${isDragging ? ORANGE : "#444"}`, borderRadius:16, padding:"40px 32px", textAlign:"center", cursor:"pointer", background: isDragging ? "#FC4C0210" : "#1e1e1e", transition:"all 0.2s", marginBottom:20 }}
+            style={{ width:"100%", maxWidth:460, border:`2px dashed ${isDragging ? LIME : "rgba(255,255,255,0.15)"}`, borderRadius:16, padding:"40px 32px", textAlign:"center", cursor:"pointer", background: isDragging ? "#FC4C0210" : "#1e1e1e", transition:"all 0.2s", marginBottom:20 }}
           >
             <input id="csv-input" type="file" accept=".csv" style={{ display:"none" }} onChange={e => handleFile(e.target.files[0])} />
             <div style={{ fontSize:40, marginBottom:16 }}>📂</div>
@@ -583,7 +586,7 @@ Ejemplo de formato esperado:
             {csvError && <p style={{ fontSize:12, color:"#e84800", marginTop:12 }}>{csvError}</p>}
           </div>
 
-          <div style={{ width:"100%", maxWidth:460, background:"#1e1e1e", border:`1px solid ${BORDER}`, borderRadius:12, padding:"16px 20px", marginBottom:20 }}>
+          <div style={{ width:"100%", maxWidth:460, background:"#1e1e1e", border:`1px solid rgba(255,255,255,0.08)`, borderRadius:12, padding:"16px 20px", marginBottom:20 }}>
             <p style={{ fontSize:12, fontWeight:600, color:TEXT_MUTED, marginBottom:12, textTransform:"uppercase", letterSpacing:.5 }}>¿Cómo exportar tu CSV?</p>
             <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
               <div style={{ display:"flex", gap:12, alignItems:"flex-start" }}>
@@ -605,7 +608,7 @@ Ejemplo de formato esperado:
 
           <button
             onClick={() => setShowDemo(true)}
-            style={{ background:"transparent", border:`1px solid ${BORDER}`, color:TEXT_MUTED, borderRadius:10, padding:"10px 28px", fontSize:13, cursor:"pointer" }}
+            style={{ background:"transparent", border:`1px solid rgba(255,255,255,0.15)`, color:TEXT_MUTED, borderRadius:10, padding:"10px 28px", fontSize:13, cursor:"pointer" }}
           >
             Ver demo con datos de ejemplo
           </button>
@@ -624,7 +627,7 @@ Ejemplo de formato esperado:
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Activity size={22} color={ORANGE} />
-          <span style={{ fontSize: 20, fontWeight: 600, letterSpacing: -0.3 }}>Running Stats</span>
+          <span style={{ fontSize: 22, fontWeight: 900, letterSpacing: -0.5 }}>Runalyze</span>
           <span style={{ fontSize: 12, color: TEXT_MUTED, marginLeft: 4 }}>Strava · {filtered.length}/{activeData.length} actividades</span>
         </div>
         <div style={{ display:"flex", gap:8 }}>
@@ -634,7 +637,7 @@ Ejemplo de formato esperado:
         </button>
         <button
           onClick={() => setImperial(!imperial)}
-          style={{ ...inputStyle, background: imperial ? ORANGE : CARD_BG, color: imperial ? "#fff" : TEXT_MUTED, border: `1px solid ${imperial ? ORANGE : BORDER}` }}
+          style={{ ...inputStyle, background: imperial ? LIME : "rgba(255,255,255,0.06)", color: imperial ? "#000" : TEXT_MUTED, border: `1px solid ${imperial ? LIME : "rgba(255,255,255,0.1)"}` }}
         >
           {imperial ? "Imperial (mi)" : "Métrico (km)"}
         </button>
@@ -698,7 +701,7 @@ Ejemplo de formato esperado:
               {k.icon}
               <span style={{ fontSize: 12, color: TEXT_MUTED, textTransform: "uppercase", letterSpacing: 0.5 }}>{k.label}</span>
             </div>
-            <span style={{ fontSize: 26, fontWeight: 700, color: TEXT_PRIMARY, lineHeight: 1 }}>{k.value}</span>
+            <span style={{ fontSize: 32, fontWeight: 900, color: TEXT_PRIMARY, lineHeight: 1, letterSpacing: -1 }}>{k.value}</span>
           </div>
         ))}
       </div>
@@ -712,23 +715,23 @@ Ejemplo de formato esperado:
         <div style={{ width: "100%", height: 220 }}>
           <ResponsiveContainer>
             <BarChart data={weeklyData} barSize={22}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#2a2a2a" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
               <XAxis dataKey="label" tick={{ fill: TEXT_MUTED, fontSize: 10, angle: -35, textAnchor: "end" }} axisLine={false} tickLine={false} interval={0} height={48} />
               <YAxis tick={{ fill: TEXT_MUTED, fontSize: 11 }} axisLine={false} tickLine={false} unit={imperial ? " mi" : " km"} width={48} />
               <Tooltip
-                contentStyle={{ background: "#1e1e1e", border: `1px solid ${BORDER}`, borderRadius: 8, fontSize: 12 }}
+                contentStyle={{ background: "rgba(15,15,15,0.95)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 12 }}
                 labelStyle={{ color: TEXT_PRIMARY }}
                 formatter={(v) => [`${v} ${imperial ? "mi" : "km"}`, "Volumen"]}
                 cursor={{ fill: "#ffffff08" }}
               />
-              <Bar dataKey="km" fill={ORANGE} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="km" fill={LIME} radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
       </div>
 
       {/* AI Insights */}
-      <div style={{ ...cardStyle, marginBottom: 16, borderLeft: `3px solid ${ORANGE}` }}>
+      <div style={{ ...cardStyle, marginBottom: 16, borderLeft: `3px solid ${LIME}` }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <Brain size={16} color={ORANGE} />
@@ -755,10 +758,10 @@ Ejemplo de formato esperado:
       </div>
 
       {/* Recommendations */}
-      <div style={{ ...cardStyle, marginBottom: 16, borderLeft: `3px solid #4a9eff` }}>
+      <div style={{ ...cardStyle, marginBottom: 16, borderLeft: `3px solid ${VIOLET}` }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Zap size={16} color="#4a9eff" />
+            <Zap size={16} color={VIOLET} />
             <span style={{ fontSize: 14, fontWeight: 600 }}>Recomendaciones para mejorar</span>
             <span style={{ fontSize: 11, color: TEXT_MUTED, marginLeft: 2 }}>· generado por IA</span>
           </div>
@@ -771,14 +774,14 @@ Ejemplo de formato esperado:
         {!recsError && !recsLoading && recs.length === 0 && <p style={{ fontSize: 13, color: TEXT_MUTED, margin: 0 }}>Seleccioná un rango de fechas para generar recomendaciones.</p>}
         {recsLoading && (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {[1,2,3,4].map(i => <div key={i} style={{ height: 54, background: "#2a2a2a", borderRadius: 8, animation: "pulse 1.2s ease-in-out infinite", animationDelay: `${i*0.1}s` }} />)}
+            {[1,2,3,4].map(i => <div key={i} style={{ height: 54, background: "rgba(255,255,255,0.05)", borderRadius: 8, animation: "pulse 1.2s ease-in-out infinite", animationDelay: `${i*0.1}s` }} />)}
           </div>
         )}
         {!recsLoading && recs.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {recs.map((r, i) => (
-              <div key={i} style={{ display: "flex", gap: 14, alignItems: "flex-start", background: "#2a2a2a", borderRadius: 8, padding: "12px 14px" }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#4a9eff", minWidth: 20, lineHeight: 1.5 }}>{i + 1}.</span>
+              <div key={i} style={{ display: "flex", gap: 14, alignItems: "flex-start", background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: "12px 14px" }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: VIOLET, minWidth: 20, lineHeight: 1.5 }}>{i + 1}.</span>
                 <div>
                   <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: TEXT_PRIMARY, lineHeight: 1.4 }}>{r.titulo}</p>
                   <p style={{ margin: "3px 0 0", fontSize: 12, color: TEXT_MUTED, lineHeight: 1.55 }}>{r.detalle}</p>
@@ -844,7 +847,7 @@ Ejemplo de formato esperado:
             { label: "Pico registrado", value: `${Math.max(...VO2_DATA.map(d=>d.value))}`, unit: "ml/kg/min" },
             { label: "Progreso total", value: `+${(VO2_DATA[VO2_DATA.length-1].value - VO2_DATA[0].value).toFixed(1)}`, unit: "ml/kg/min" },
           ].map((s, i) => (
-            <div key={i} style={{ background: "#2a2a2a", borderRadius: 8, padding: "10px 12px" }}>
+            <div key={i} style={{ background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: "10px 12px" }}>
               <p style={{ margin: 0, fontSize: 11, color: TEXT_MUTED }}>{s.label}</p>
               <p style={{ margin: "4px 0 0", fontSize: 18, fontWeight: 700, color: TEXT_PRIMARY }}>{s.value} <span style={{ fontSize: 10, fontWeight: 400, color: TEXT_MUTED }}>{s.unit}</span></p>
             </div>
@@ -863,13 +866,13 @@ Ejemplo de formato esperado:
           </p>
           {vo2ActLoading && (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {[1,2,3].map(i => <div key={i} style={{ height: 50, background: "#2a2a2a", borderRadius: 8, animation: "pulse 1.2s ease-in-out infinite", animationDelay: `${i*0.1}s` }} />)}
+              {[1,2,3].map(i => <div key={i} style={{ height: 50, background: "rgba(255,255,255,0.05)", borderRadius: 8, animation: "pulse 1.2s ease-in-out infinite", animationDelay: `${i*0.1}s` }} />)}
             </div>
           )}
           {!vo2ActLoading && vo2Actions.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {vo2Actions.map((a, i) => (
-                <div key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start", background: "#2a2a2a", borderRadius: 8, padding: "11px 13px", borderLeft: `3px solid #e040fb44` }}>
+                <div key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start", background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: "11px 13px", borderLeft: `3px solid #e040fb44` }}>
                   <span style={{ fontSize: 13, fontWeight: 700, color: "#e040fb", minWidth: 20, lineHeight: 1.5, flexShrink: 0 }}>{i + 1}.</span>
                   <div>
                     <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: TEXT_PRIMARY, lineHeight: 1.4 }}>{a.titulo}</p>
@@ -886,7 +889,7 @@ Ejemplo de formato esperado:
       {showConfig && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center" }}
           onClick={() => setShowConfig(false)}>
-          <div style={{ background:"#1e1e1e", border:`1px solid ${BORDER}`, borderRadius:16, padding:"28px 32px", width:420, maxWidth:"90vw" }}
+          <div style={{ background:"#1e1e1e", border:`1px solid rgba(255,255,255,0.08)`, borderRadius:16, padding:"28px 32px", width:420, maxWidth:"90vw" }}
             onClick={e => e.stopPropagation()}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:24 }}>
               <span style={{ fontSize:16, fontWeight:700, color:TEXT_PRIMARY }}>Configuración</span>
@@ -905,7 +908,7 @@ Ejemplo de formato esperado:
                   value={configDraft ? configDraft[f.key] : config[f.key]}
                   placeholder={f.placeholder}
                   onChange={e => setConfigDraft(prev => ({ ...(prev || config), [f.key]: f.type==="number" ? parseFloat(e.target.value)||0 : e.target.value }))}
-                  style={{ width:"100%", background:"#2a2a2a", border:`1px solid ${BORDER}`, color:TEXT_PRIMARY, borderRadius:8, padding:"8px 12px", fontSize:13, colorScheme:"dark" }}
+                  style={{ width:"100%", background:"#2a2a2a", border:`1px solid rgba(255,255,255,0.08)`, color:TEXT_PRIMARY, borderRadius:8, padding:"8px 12px", fontSize:13, colorScheme:"dark" }}
                 />
               </div>
             ))}
@@ -917,7 +920,7 @@ Ejemplo de formato esperado:
                   const active = Math.abs(cur - d.value) < 0.1;
                   return (
                     <button key={d.value} onClick={() => setConfigDraft(prev => ({ ...(prev || config), raceDist: d.value }))}
-                      style={{ background: active ? ORANGE : "#2a2a2a", border:`1px solid ${active ? ORANGE : BORDER}`, color: active ? "#fff" : TEXT_MUTED, borderRadius:8, padding:"8px 12px", fontSize:12, cursor:"pointer", fontWeight: active ? 600 : 400 }}>
+                      style={{ background: active ? LIME : "rgba(255,255,255,0.05)", border:`1px solid ${active ? LIME : "rgba(255,255,255,0.08)"}`, color: active ? "#000" : TEXT_MUTED, borderRadius:8, padding:"8px 12px", fontSize:12, cursor:"pointer", fontWeight: active ? 600 : 400 }}>
                       {d.label}
                     </button>
                   );
@@ -931,7 +934,7 @@ Ejemplo de formato esperado:
                   const cur = configDraft ? configDraft.sex : config.sex;
                   return (
                     <button key={s.val} onClick={() => setConfigDraft(prev => ({ ...(prev || config), sex: s.val }))}
-                      style={{ flex:1, background: cur===s.val ? ORANGE : "#2a2a2a", border:`1px solid ${cur===s.val ? ORANGE : BORDER}`, color: cur===s.val ? "#fff" : TEXT_MUTED, borderRadius:8, padding:"8px 12px", fontSize:12, cursor:"pointer" }}>
+                      style={{ flex:1, background: cur===s.val ? LIME : "rgba(255,255,255,0.05)", border:`1px solid ${cur===s.val ? LIME : "rgba(255,255,255,0.08)"}`, color: cur===s.val ? "#000" : TEXT_MUTED, borderRadius:8, padding:"8px 12px", fontSize:12, cursor:"pointer" }}>
                       {s.label}
                     </button>
                   );
@@ -940,7 +943,7 @@ Ejemplo de formato esperado:
             </div>
             <button
               onClick={() => { if (configDraft) { setConfig(configDraft); setConfigDraft(null); } setShowConfig(false); }}
-              style={{ width:"100%", background:ORANGE, border:"none", color:"#fff", borderRadius:10, padding:"12px 0", fontSize:14, fontWeight:700, cursor:"pointer" }}>
+              style={{ width:"100%", background:LIME, border:"none", color:"#000", borderRadius:10, padding:"12px 0", fontSize:14, fontWeight:700, cursor:"pointer" }}>
               Guardar cambios
             </button>
           </div>
@@ -948,7 +951,7 @@ Ejemplo de formato esperado:
       )}
 
       {/* ── COUNTDOWN ── */}
-      <div style={{ marginTop:16, background:"linear-gradient(135deg,#1a1a1a 0%,#242424 100%)", border:`1px solid ${BORDER}`, borderRadius:16, padding:"24px", position:"relative", overflow:"hidden" }}>
+      <div style={{ marginTop:16, background:"linear-gradient(135deg,#1a1a1a 0%,#242424 100%)", border:`1px solid rgba(255,255,255,0.08)`, borderRadius:16, padding:"24px", position:"relative", overflow:"hidden" }}>
         <div style={{ position:"absolute", top:0, right:0, width:200, height:200, background:ORANGE, opacity:0.04, borderRadius:"50%", transform:"translate(60px,-60px)" }} />
         <div style={{ position:"absolute", bottom:0, left:0, width:120, height:120, background:ORANGE, opacity:0.03, borderRadius:"50%", transform:"translate(-40px,40px)" }} />
 
@@ -964,7 +967,7 @@ Ejemplo de formato esperado:
             </div>
           </div>
           <button onClick={() => { setConfigDraft(null); setShowConfig(true); }}
-            style={{ background:"#2a2a2a", border:`1px solid ${BORDER}`, color:TEXT_MUTED, borderRadius:8, padding:"6px 12px", fontSize:12, cursor:"pointer", display:"flex", alignItems:"center", gap:6, flexShrink:0 }}>
+            style={{ background:"#2a2a2a", border:`1px solid rgba(255,255,255,0.08)`, color:TEXT_MUTED, borderRadius:8, padding:"6px 12px", fontSize:12, cursor:"pointer", display:"flex", alignItems:"center", gap:6, flexShrink:0 }}>
             <RefreshCw size={12} /> Editar
           </button>
         </div>
@@ -977,7 +980,7 @@ Ejemplo de formato esperado:
             { val: countdown.secs,  label: "segundos", big: false },
           ].map((u, i) => (
             <div key={i} style={{ background: u.big ? "#FC4C0218" : "#2a2a2a", border:`1px solid ${u.big ? ORANGE+"55" : BORDER}`, borderRadius:12, padding:"16px 0", textAlign:"center" }}>
-              <div style={{ fontSize: u.big ? 48 : 32, fontWeight:800, color: u.big ? ORANGE : TEXT_PRIMARY, lineHeight:1, fontVariantNumeric:"tabular-nums", letterSpacing:-1 }}>
+              <div style={{ fontSize: u.big ? 56 : 36, fontWeight:900, color: u.big ? LIME : TEXT_PRIMARY, letterSpacing: -2, lineHeight:1, fontVariantNumeric:"tabular-nums", letterSpacing:-1 }}>
                 {String(u.val).padStart(2,"0")}
               </div>
               <div style={{ fontSize:10, color:TEXT_MUTED, marginTop:6, textTransform:"uppercase", letterSpacing:1 }}>{u.label}</div>
@@ -995,7 +998,7 @@ Ejemplo de formato esperado:
           return (
             <div style={{ position:"relative" }}>
               <div style={{ background:"#2a2a2a", borderRadius:8, height:8, overflow:"hidden" }}>
-                <div style={{ height:"100%", width:`${pct}%`, background:`linear-gradient(90deg, ${ORANGE}88, ${ORANGE})`, borderRadius:8, transition:"width 1s linear" }} />
+                <div style={{ height:"100%", width:`${pct}%`, background:`linear-gradient(90deg, ${LIME}88, ${LIME})`, borderRadius:8, transition:"width 1s linear" }} />
               </div>
               <div style={{ display:"flex", justifyContent:"space-between", marginTop:6 }}>
                 <span style={{ fontSize:11, color:TEXT_MUTED }}>Hoy · {new Date().toLocaleDateString("es-AR",{day:"numeric",month:"short"})}</span>
@@ -1099,7 +1102,7 @@ Ejemplo de formato esperado:
         onDragLeave={() => setIsDragging(false)}
         onDrop={e => { e.preventDefault(); setIsDragging(false); handleFile(e.dataTransfer.files[0]); }}
         onClick={() => document.getElementById("csv-footer-input").click()}
-        style={{ marginTop:20, border:`1px dashed ${isDragging ? ORANGE : csvData ? "#4caf5066" : BORDER}`, borderRadius:8, padding:"10px 16px", background: isDragging ? "#FC4C0210" : "transparent", cursor:"pointer", display:"flex", alignItems:"center", gap:10, transition:"all 0.2s" }}
+        style={{ marginTop:20, border:`1px dashed ${isDragging ? LIME : csvData ? "#4caf5066" : "rgba(255,255,255,0.1)"}`, borderRadius:8, padding:"10px 16px", background: isDragging ? "#FC4C0210" : "transparent", cursor:"pointer", display:"flex", alignItems:"center", gap:10, transition:"all 0.2s" }}
       >
         <input id="csv-footer-input" type="file" accept=".csv" style={{ display:"none" }} onChange={e => handleFile(e.target.files[0])} />
         <span style={{ fontSize:14 }}>{csvData ? "✅" : "📂"}</span>
@@ -1110,7 +1113,7 @@ Ejemplo de formato esperado:
         </span>
         {csvData
           ? <button onClick={e => { e.stopPropagation(); if(!showDemo){ setShowDemo(false); } setCsvData(null); setCsvError(""); setShowDemo(false); }}
-              style={{ background:"transparent", border:`1px solid ${BORDER}`, color:TEXT_MUTED, borderRadius:6, padding:"3px 10px", fontSize:11, cursor:"pointer" }}>
+              style={{ background:"transparent", border:`1px solid rgba(255,255,255,0.08)`, color:TEXT_MUTED, borderRadius:6, padding:"3px 10px", fontSize:11, cursor:"pointer" }}>
               Cambiar datos
             </button>
           : <span style={{ fontSize:11, color:TEXT_MUTED, flexShrink:0 }}>Hacé clic o arrastrá</span>
@@ -1126,5 +1129,6 @@ Ejemplo de formato esperado:
       </div>
       )}
     </div>
+    </>
   );
 }
