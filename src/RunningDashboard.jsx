@@ -72,8 +72,12 @@ const EARLIEST = RAW_DATA[RAW_DATA.length - 1].date;
 const RACE_DISTANCES = [
   { label: "5k", value: 5 },
   { label: "10k", value: 10 },
+  { label: "15k", value: 15 },
   { label: "21k — Media Maratón", value: 21.0975 },
+  { label: "25k", value: 25 },
+  { label: "30k", value: 30 },
   { label: "42k — Maratón", value: 42.195 },
+  { label: "Otra", value: 0 },
 ];
 
 const HR_ZONES = [
@@ -90,10 +94,20 @@ const RIEGEL_EXP = 1.06;
 export default function RunningDashboard() {
   const [csvData, setCsvData] = useState(null);
   const [showDemo, setShowDemo] = useState(false);
+  const [homeForm, setHomeForm] = useState({
+    userName: "",
+    raceName: "Maratón de Buenos Aires",
+    raceDate: "2026-09-27",
+    raceDist: 42.195,
+    fcMax: 181,
+    age: "",
+    sex: "F",
+  });
   const [csvError, setCsvError] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
   const [config, setConfig] = useState({
+    userName: "",
     raceName: "Maratón de Buenos Aires",
     raceDate: "2026-09-27",
     raceDist: 42.195,
@@ -141,46 +155,74 @@ export default function RunningDashboard() {
   const parseCSV = (text) => {
     try {
       const lines = text.trim().split("\n");
-      const header = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g,""));
-      const dateIdx = header.findIndex(h => h === "Activity Date");
-      const distIdx = header.findIndex(h => h === "Distance" && header.indexOf(h) > 10);
-      const movingIdx = header.findIndex(h => h === "Moving Time");
-      const elevIdx = header.findIndex(h => h === "Elevation Gain");
-      const hrIdx = header.findIndex(h => h === "Average Heart Rate");
-      const calIdx = header.findIndex(h => h === "Calories");
-      const nameIdx = header.findIndex(h => h === "Activity Name");
-      const typeIdx = header.findIndex(h => h === "Activity Type");
+      const header = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g,"").replace(/\r/g,""));
 
-      if (dateIdx === -1 || distIdx === -1) {
-        setCsvError("No se encontraron columnas de fecha o distancia. Verificá que sea el CSV de Strava.");
+      // Detect platform: Strava or Garmin
+      const isGarmin = header.includes("Avg Pace") || header.includes("Avg HR");
+      const isStrava = header.includes("Activity Date");
+
+      if (!isGarmin && !isStrava) {
+        setCsvError("No se encontraron columnas de fecha o distancia. Verificá que sea el CSV de Strava o Garmin.");
         return null;
       }
 
+      // Map columns for each platform
+      const dateIdx    = isGarmin ? header.indexOf("Date")          : header.indexOf("Activity Date");
+      const distIdx    = header.indexOf("Distance");
+      const nameIdx    = isGarmin ? header.indexOf("Title")         : header.indexOf("Activity Name");
+      const typeIdx    = isGarmin ? header.indexOf("Activity Type") : header.indexOf("Activity Type");
+      const elevIdx    = isGarmin ? header.indexOf("Total Ascent")  : header.indexOf("Elevation Gain");
+      const hrIdx      = isGarmin ? header.indexOf("Avg HR")        : header.indexOf("Average Heart Rate");
+      const calIdx     = header.indexOf("Calories");
+      const movingIdx  = header.indexOf("Moving Time");
+      const paceIdx    = isGarmin ? header.indexOf("Avg Pace")      : -1;
+
+      const calcWeek = (dt) => {
+        const d = new Date(Date.UTC(dt.getFullYear(), dt.getMonth(), dt.getDate()));
+        d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+        const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+        const wk = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+        return `${d.getUTCFullYear()}-W${String(wk).padStart(2,"0")}`;
+      };
+
       const parsed = [];
       for (let i = 1; i < lines.length; i++) {
-        const row = lines[i].match(/(".*?"|[^,]+|(?<=,)(?=,)|(?<=,)$|^(?=,))/g) || [];
-        const clean = (idx) => (row[idx] || "").replace(/^"|"$/g,"").trim();
+        const row = lines[i].match(/(".*?"|[^,\r\n]+|(?<=,)(?=,))/g) || [];
+        const clean = (idx) => idx >= 0 ? (row[idx] || "").replace(/^"|"$/g,"").replace(/,/g,"").trim() : "";
+
         const dateStr = clean(dateIdx);
         if (!dateStr) continue;
         let dt;
         try { dt = new Date(dateStr); } catch { continue; }
         if (isNaN(dt)) continue;
-        const distM = parseFloat(clean(distIdx)) || 0;
-        const distKm = distM > 500 ? distM / 1000 : distM;
+
+        const distRaw = parseFloat(clean(distIdx)) || 0;
+        const distKm = isGarmin ? distRaw : (distRaw > 500 ? distRaw / 1000 : distRaw);
         if (distKm < 0.5) continue;
-        const movingS = parseFloat(clean(movingIdx)) || 0;
-        const pace = movingS > 0 && distKm > 0 ? (movingS / 60) / distKm : 0;
+
+        // Parse pace/time
+        let movingS = 0;
+        let pace = 0;
+        if (isGarmin && paceIdx >= 0) {
+          const paceStr = clean(paceIdx); // format "M:SS"
+          const parts = paceStr.split(":");
+          if (parts.length === 2) pace = parseInt(parts[0]) + parseInt(parts[1]) / 60;
+          movingS = Math.round(pace * 60 * distKm);
+        } else if (movingIdx >= 0) {
+          const tStr = clean(movingIdx);
+          const parts = tStr.split(":").map(Number);
+          if (parts.length === 3) movingS = parts[0]*3600 + parts[1]*60 + parts[2];
+          else if (parts.length === 2) movingS = parts[0]*60 + parts[1];
+          else movingS = parseFloat(tStr) || 0;
+          pace = movingS > 0 && distKm > 0 ? (movingS / 60) / distKm : 0;
+        }
+
         if (pace > 0 && (pace < 2 || pace > 15)) continue;
-        const type = clean(typeIdx) || "Run";
-        if (!["Run","VirtualRun","TrailRun","Treadmill"].includes(type) && type !== "") {}
-        const year = dt.getFullYear();
-        const week = (() => {
-          const d = new Date(Date.UTC(dt.getFullYear(), dt.getMonth(), dt.getDate()));
-          d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-          const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-          const wk = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-          return `${d.getUTCFullYear()}-W${String(wk).padStart(2,"0")}`;
-        })();
+
+        const elev = parseFloat(clean(elevIdx)) || 0;
+        const avgHr = parseFloat(clean(hrIdx)) || 0;
+        const cal = parseFloat(clean(calIdx).replace(/,/g,"")) || 0;
+
         parsed.push({
           id: String(i),
           date: dt.toISOString().slice(0,10),
@@ -188,15 +230,17 @@ export default function RunningDashboard() {
           dist_km: Math.round(distKm * 100) / 100,
           moving_time_s: Math.round(movingS),
           pace: Math.round(pace * 1000) / 1000,
-          elev: parseFloat(clean(elevIdx)) || 0,
-          avg_hr: parseFloat(clean(hrIdx)) || 0,
-          calories: parseFloat(clean(calIdx)) || 0,
-          year,
-          week,
+          elev: Math.round(elev * 10) / 10,
+          avg_hr: avgHr,
+          calories: cal,
+          year: dt.getFullYear(),
+          week: calcWeek(dt),
           dow: (dt.getDay() + 6) % 7,
           month: dt.toISOString().slice(0,7),
+          source: isGarmin ? "garmin" : "strava",
         });
       }
+
       if (parsed.length === 0) {
         setCsvError("No se encontraron actividades válidas en el archivo.");
         return null;
@@ -204,7 +248,7 @@ export default function RunningDashboard() {
       setCsvError("");
       return parsed.sort((a,b) => b.date.localeCompare(a.date));
     } catch(e) {
-      setCsvError("Error al procesar el archivo. Asegurate de que sea un CSV válido de Strava.");
+      setCsvError("Error al procesar el archivo. Verificá que sea un CSV válido de Strava o Garmin.");
       return null;
     }
   };
@@ -567,57 +611,181 @@ Ejemplo de formato esperado:
 
       {/* ── WELCOME SCREEN ── */}
       {!csvData && !showDemo && (
-        <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"40px 24px", backgroundImage:"radial-gradient(ellipse at 30% 40%, rgba(198,241,53,0.06) 0%, transparent 50%), radial-gradient(ellipse at 70% 70%, rgba(191,95,255,0.06) 0%, transparent 50%)" }}>
-          <div style={{ marginBottom:24, textAlign:"center" }}>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:10, marginBottom:12 }}>
-              <Activity size={28} color={ORANGE} />
-              <span style={{ fontSize:42, fontWeight:900, letterSpacing:-1 }}>Runalyze</span>
+        <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"40px 24px", position:"relative", overflow:"hidden", background:"#0a0a0a" }}>
+          {/* Map background */}
+        <svg style={{ position:"absolute", inset:0, width:"100%", height:"100%", opacity:0.35 }} viewBox="0 0 680 620" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
+          <rect width="680" height="620" fill="#0d0d0d"/>
+          <g stroke="#4a4a4a" strokeWidth="1.2" fill="none">
+            <path d="M0,180 Q80,160 160,200 T340,180 T520,200 T680,170"/>
+            <path d="M0,280 Q100,260 200,300 T400,270 T600,290 T680,270"/>
+            <path d="M0,390 Q120,370 240,400 T480,380 T680,400"/>
+            <path d="M0,480 Q90,460 180,490 T360,470 T540,490 T680,470"/>
+            <path d="M100,0 Q120,80 100,160 T110,320 T95,480 T110,620"/>
+            <path d="M220,0 Q240,100 220,200 T230,360 T215,500 T225,620"/>
+            <path d="M380,0 Q400,90 380,180 T390,340 T375,480 T385,620"/>
+            <path d="M530,0 Q550,110 530,220 T540,380 T525,520 T535,620"/>
+            <path d="M0,80 Q200,60 400,100 T680,80" stroke="#2a2a2a"/>
+            <path d="M0,340 Q150,320 300,350 T680,330" stroke="#2a2a2a"/>
+            <path d="M50,0 Q70,150 50,300 T60,620" stroke="#2a2a2a"/>
+            <path d="M300,0 Q320,200 300,380 T310,620" stroke="#2a2a2a"/>
+            <path d="M460,0 Q480,170 460,340 T470,620" stroke="#2a2a2a"/>
+            <path d="M0,0 Q170,140 340,310 T680,620" stroke="#2e2e2e"/>
+            <path d="M680,0 Q510,140 340,310 T0,620" stroke="#2e2e2e"/>
+            <circle cx="340" cy="310" r="40" stroke="#333" strokeWidth="0.8"/>
+            <circle cx="160" cy="190" r="28" stroke="#2e2e2e" strokeWidth="0.7"/>
+            <circle cx="520" cy="400" r="32" stroke="#2e2e2e" strokeWidth="0.7"/>
+          </g>
+          <g stroke="#666" strokeWidth="2.5" fill="none">
+            <path d="M0,230 Q170,210 340,250 T680,230"/>
+            <path d="M170,0 Q190,200 170,400 T180,620"/>
+            <path d="M450,0 Q470,180 450,360 T460,620"/>
+          </g>
+          <path d="M80,520 Q120,480 160,440 T240,370 T300,310 T360,250 T420,200 T480,160 T540,130" stroke="#C6F135" strokeWidth="3" fill="none" strokeLinecap="round" opacity="0.9"/>
+          <circle cx="80" cy="520" r="5" fill="#C6F135" opacity="0.9"/>
+          <circle cx="540" cy="130" r="5" fill="#C6F135" opacity="0.9"/>
+        </svg>
+        <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom, rgba(13,13,13,0.15) 0%, rgba(13,13,13,0.35) 50%, rgba(13,13,13,0.75) 100%)", pointerEvents:"none" }} />
+        <div style={{ position:"absolute", top:"10%", left:"5%", width:300, height:300, borderRadius:"50%", background:"rgba(198,241,53,0.06)", filter:"blur(90px)", pointerEvents:"none" }} />
+        <div style={{ position:"absolute", bottom:"10%", right:"5%", width:250, height:250, borderRadius:"50%", background:"rgba(191,95,255,0.06)", filter:"blur(80px)", pointerEvents:"none" }} />
+
+        {/* Content wrapper — above overlays */}
+        <div style={{ position:"relative", zIndex:1, display:"flex", flexDirection:"column", alignItems:"center", width:"100%", maxWidth:500 }}>
+
+        {/* Logo + título */}
+        <div style={{ textAlign:"center", marginBottom:40 }}>
+          <div style={{ display:"inline-flex", alignItems:"center", gap:12, marginBottom:16 }}>
+            <div style={{ width:48, height:48, borderRadius:14, background:"rgba(198,241,53,0.12)", border:"1px solid rgba(198,241,53,0.25)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <Activity size={24} color={LIME} />
             </div>
-            <p style={{ fontSize:15, color:TEXT_MUTED, maxWidth:380, lineHeight:1.6, margin:"0 auto" }}>
-              ¡Bienvenido a tu dashboard personal de running! Cargá tus datos para comenzar.
-            </p>
+            <span style={{ fontSize:42, fontWeight:900, letterSpacing:-2, color:TEXT_PRIMARY }}>Runalyze</span>
+          </div>
+          <p style={{ fontSize:16, color:LIME, maxWidth:340, lineHeight:1.7, margin:"0 auto" }}>
+            ¡Bienvenido a tu dashboard personal de running!<br/>
+            <span style={{ color:TEXT_MUTED }}>Cargá tus datos para comenzar.</span>
+          </p>
+        </div>
+
+        {/* Home form */}
+        <div style={{ width:"100%", maxWidth:460, background:"rgba(255,255,255,0.03)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:20, padding:"20px 20px", marginBottom:14 }}>
+          
+          {/* Nombre */}
+          <div style={{ marginBottom:14 }}>
+            <label style={{ fontSize:11, fontWeight:700, color:TEXT_MUTED, textTransform:"uppercase", letterSpacing:1, display:"block", marginBottom:6 }}>Tu nombre</label>
+            <input
+              type="text"
+              placeholder=""
+              value={homeForm.userName}
+              onChange={e => setHomeForm(f => ({ ...f, userName: e.target.value }))}
+              style={{ width:"100%", background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", color:TEXT_PRIMARY, borderRadius:10, padding:"10px 14px", fontSize:14, outline:"none", colorScheme:"dark" }}
+            />
           </div>
 
-          <div
-            onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
-            onDragLeave={() => setIsDragging(false)}
-            onDrop={e => { e.preventDefault(); setIsDragging(false); handleFile(e.dataTransfer.files[0]); }}
-            onClick={() => document.getElementById("csv-input").click()}
-            style={{ width:"100%", maxWidth:460, border:`2px dashed ${isDragging ? LIME : "rgba(255,255,255,0.15)"}`, borderRadius:16, padding:"40px 32px", textAlign:"center", cursor:"pointer", background: isDragging ? "rgba(198,241,53,0.06)" : "#1e1e1e", transition:"all 0.2s", marginBottom:20 }}
-          >
-            <input id="csv-input" type="file" accept=".csv" style={{ display:"none" }} onChange={e => handleFile(e.target.files[0])} />
-            <div style={{ fontSize:40, marginBottom:16 }}>📂</div>
-            <p style={{ fontSize:15, fontWeight:700, color:TEXT_PRIMARY, margin:"0 0 8px" }}>Arrastrá tu CSV aquí</p>
-            <p style={{ fontSize:13, color:TEXT_MUTED, margin:0 }}>o hacé clic para seleccionar el archivo</p>
-            {csvError && <p style={{ fontSize:12, color:"#e84800", marginTop:12 }}>{csvError}</p>}
-          </div>
-
-          <div style={{ width:"100%", maxWidth:460, background:"#1e1e1e", border:`1px solid rgba(255,255,255,0.08)`, borderRadius:12, padding:"16px 20px", marginBottom:20 }}>
-            <p style={{ fontSize:12, fontWeight:600, color:TEXT_MUTED, marginBottom:12, textTransform:"uppercase", letterSpacing:.5 }}>¿Cómo exportar tu CSV?</p>
-            <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-              <div style={{ display:"flex", gap:12, alignItems:"flex-start" }}>
-                <span style={{ fontSize:16, flexShrink:0 }}>🟠</span>
-                <div>
-                  <p style={{ fontSize:13, fontWeight:600, color:TEXT_PRIMARY, margin:0 }}>Strava</p>
-                  <p style={{ fontSize:12, color:TEXT_MUTED, margin:"2px 0 0", lineHeight:1.5 }}>Configuración → Mi cuenta → Mis datos → Solicitar tus archivos → <code style={{ background:"#2a2a2a", padding:"1px 5px", borderRadius:4 }}>activities.csv</code></p>
-                </div>
-              </div>
-              <div style={{ display:"flex", gap:12, alignItems:"flex-start" }}>
-                <span style={{ fontSize:16, flexShrink:0 }}>🔵</span>
-                <div>
-                  <p style={{ fontSize:13, fontWeight:600, color:TEXT_PRIMARY, margin:0 }}>Garmin Connect</p>
-                  <p style={{ fontSize:12, color:TEXT_MUTED, margin:"2px 0 0", lineHeight:1.5 }}>Actividades → Exportar → CSV</p>
-                </div>
+          {/* Próxima carrera */}
+          <div style={{ marginBottom:14 }}>
+            <label style={{ fontSize:11, fontWeight:700, color:TEXT_MUTED, textTransform:"uppercase", letterSpacing:1, display:"block", marginBottom:6 }}>Próxima carrera</label>
+            <input
+              type="text"
+              placeholder="ej: Maratón de Buenos Aires"
+              value={homeForm.raceName}
+              onChange={e => setHomeForm(f => ({ ...f, raceName: e.target.value }))}
+              style={{ width:"100%", background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", color:TEXT_PRIMARY, borderRadius:10, padding:"10px 14px", fontSize:14, outline:"none", colorScheme:"dark", marginBottom:8 }}
+            />
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+              <input
+                type="date"
+                value={homeForm.raceDate}
+                onChange={e => setHomeForm(f => ({ ...f, raceDate: e.target.value }))}
+                style={{ background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", color:TEXT_PRIMARY, borderRadius:10, padding:"10px 14px", fontSize:13, outline:"none", colorScheme:"dark", width:"100%" }}
+              />
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:6, gridAutoRows:"auto" }}>
+                {RACE_DISTANCES.map(d => {
+                  const active = d.value === 0 ? homeForm.raceDist === 0 : Math.abs(homeForm.raceDist - d.value) < 0.1;
+                  return (
+                    <button key={d.value} onClick={() => setHomeForm(f => ({ ...f, raceDist: d.value }))}
+                      style={{ background: active ? LIME : "rgba(255,255,255,0.05)", border:`1px solid ${active ? LIME : "rgba(255,255,255,0.08)"}`, color: active ? "#000" : TEXT_MUTED, borderRadius:8, padding:"10px 0", fontSize:11, fontWeight: active ? 700 : 400, cursor:"pointer" }}>
+                      {d.label.split(" ")[0]}
+                    </button>
+                  );
+                })}
+                {homeForm.raceDist === 0 && (
+                  <input type="number" placeholder="km" autoFocus
+                    onChange={e => setHomeForm(f => ({ ...f, raceDist: parseFloat(e.target.value)||0 }))}
+                    style={{ gridColumn:"1/-1", background:"rgba(255,255,255,0.06)", border:`1px solid ${LIME}`, color:TEXT_PRIMARY, borderRadius:8, padding:"8px 12px", fontSize:13, outline:"none", colorScheme:"dark", marginTop:4 }}
+                  />
+                )}
               </div>
             </div>
           </div>
 
-          <button
-            onClick={() => setShowDemo(true)}
-            style={{ background:"transparent", border:`1px solid rgba(255,255,255,0.15)`, color:TEXT_MUTED, borderRadius:10, padding:"10px 28px", fontSize:13, cursor:"pointer" }}
-          >
-            Ver demo con datos de ejemplo
-          </button>
+          {/* FC + Edad + Sexo */}
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:14 }}>
+            <div>
+              <label style={{ fontSize:11, fontWeight:700, color:TEXT_MUTED, textTransform:"uppercase", letterSpacing:1, display:"block", marginBottom:6 }}>FC Máxima (bpm)</label>
+              <input type="number" placeholder="ej: 181" value={homeForm.fcMax}
+                onChange={e => setHomeForm(f => ({ ...f, fcMax: parseFloat(e.target.value)||0 }))}
+                style={{ width:"100%", background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", color:TEXT_PRIMARY, borderRadius:10, padding:"10px 14px", fontSize:14, outline:"none", colorScheme:"dark" }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize:11, fontWeight:700, color:TEXT_MUTED, textTransform:"uppercase", letterSpacing:1, display:"block", marginBottom:6 }}>Edad</label>
+              <input type="number" placeholder="ej: 34" value={homeForm.age}
+                onChange={e => setHomeForm(f => ({ ...f, age: parseFloat(e.target.value)||0 }))}
+                style={{ width:"100%", background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", color:TEXT_PRIMARY, borderRadius:10, padding:"10px 14px", fontSize:14, outline:"none", colorScheme:"dark" }}
+              />
+            </div>
+          </div>
+          <div>
+            <label style={{ fontSize:11, fontWeight:700, color:TEXT_MUTED, textTransform:"uppercase", letterSpacing:1, display:"block", marginBottom:6 }}>Sexo biológico</label>
+            <div style={{ display:"flex", gap:8 }}>
+              {[{label:"Femenino", val:"F"},{label:"Masculino", val:"M"}].map(s => (
+                <button key={s.val} onClick={() => setHomeForm(f => ({ ...f, sex: s.val }))}
+                  style={{ flex:1, background: homeForm.sex===s.val ? LIME : "rgba(255,255,255,0.05)", border:`1px solid ${homeForm.sex===s.val ? LIME : "rgba(255,255,255,0.08)"}`, color: homeForm.sex===s.val ? "#000" : TEXT_MUTED, borderRadius:10, padding:"10px 0", fontSize:13, fontWeight: homeForm.sex===s.val ? 700 : 400, cursor:"pointer" }}>
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <input id="csv-input" type="file" accept=".csv" style={{ display:"none" }} onChange={e => {
+          setConfig(c => ({ ...c, ...homeForm }));
+          handleFile(e.target.files[0]);
+        }} />
+        <button
+          onClick={() => document.getElementById("csv-input").click()}
+          style={{ background:LIME, border:"none", color:"#000", borderRadius:14, padding:"14px 40px", fontSize:15, fontWeight:800, cursor:"pointer", letterSpacing:-0.3, marginBottom:16, width:"100%", maxWidth:460 }}
+        >
+          Cargar mi CSV
+        </button>
+        {csvError && <p style={{ fontSize:12, color:"#ff5555", marginBottom:12, background:"rgba(255,85,85,0.1)", padding:"8px 14px", borderRadius:8, width:"100%", maxWidth:460, textAlign:"center" }}>{csvError}</p>}
+
+        <div style={{ width:"100%", maxWidth:460, background:"rgba(255,255,255,0.03)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:16, padding:"16px 20px", marginBottom:20 }}>
+          <p style={{ fontSize:11, fontWeight:700, color:TEXT_MUTED, marginBottom:12, textTransform:"uppercase", letterSpacing:1 }}>¿Cómo exportar tu CSV?</p>
+          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+            <div style={{ display:"flex", gap:12, alignItems:"center", background:"rgba(255,255,255,0.03)", borderRadius:10, padding:"10px 12px" }}>
+              <div style={{ width:32, height:32, borderRadius:8, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 15L14 7L18 15" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M6 15h4" stroke="white" strokeWidth="2" strokeLinecap="round"/></svg></div>
+              <div>
+                <p style={{ fontSize:13, fontWeight:700, color:TEXT_PRIMARY, margin:0 }}>Strava</p>
+                <p style={{ fontSize:12, color:TEXT_MUTED, margin:"2px 0 0" }}>Configuración → Mis datos → Exportar → <code style={{ background:"rgba(255,255,255,0.08)", padding:"1px 6px", borderRadius:4, fontSize:11 }}>activities.csv</code></p>
+              </div>
+            </div>
+            <div style={{ display:"flex", gap:12, alignItems:"center", background:"rgba(255,255,255,0.03)", borderRadius:10, padding:"10px 12px" }}>
+              <div style={{ width:32, height:32, borderRadius:8, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="8" stroke="white" strokeWidth="2"/><path d="M12 8V12L15 14" stroke="white" strokeWidth="2" strokeLinecap="round"/></svg></div>
+              <div>
+                <p style={{ fontSize:13, fontWeight:700, color:TEXT_PRIMARY, margin:0 }}>Garmin Connect</p>
+                <p style={{ fontSize:12, color:TEXT_MUTED, margin:"2px 0 0" }}>Actividades → Exportar → CSV</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button
+          onClick={() => { setConfig(c => ({ ...c, ...homeForm })); setShowDemo(true); }}
+          style={{ background:"transparent", border:"1px solid rgba(255,255,255,0.1)", color:TEXT_MUTED, borderRadius:12, padding:"11px 32px", fontSize:13, cursor:"pointer" }}
+        >
+          Ver demo con datos de ejemplo
+        </button>
+        </div> {/* end content wrapper */}
         </div>
       )}
 
@@ -625,6 +793,70 @@ Ejemplo de formato esperado:
       {(csvData || showDemo) && (
       <div style={{ padding: "24px 20px" }}>
       <h2 className="sr-only">Dashboard de estadísticas de running — Strava</h2>
+
+      {/* ── WELCOME BANNER ── */}
+      {config.userName && (
+        <div style={{ marginBottom: 16, paddingBottom: 16, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+          <h1 style={{ fontSize: 30, fontWeight: 900, letterSpacing: -0.5, color: TEXT_PRIMARY, margin: 0, display:"flex", alignItems:"center", gap:8 }}>
+            ¡Hola, <span style={{ color: LIME }}>{config.userName}</span>!
+            <span style={{ fontSize: 13, color: TEXT_MUTED, fontWeight: 400, marginLeft: 4 }}>· {filtered.length} actividades</span>
+          </h1>
+        </div>
+      )}
+
+      {/* ── CONFIG MODAL (solo carrera) ── */}
+      {showConfig && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center" }}
+          onClick={() => setShowConfig(false)}>
+          <div style={{ background:"rgba(20,20,20,0.95)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:16, padding:"28px 28px", width:380, maxWidth:"90vw" }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:22 }}>
+              <span style={{ fontSize:15, fontWeight:700, color:TEXT_PRIMARY }}>Editá tu próxima carrera</span>
+              <button onClick={() => setShowConfig(false)} style={{ background:"transparent", border:"none", color:TEXT_MUTED, cursor:"pointer", fontSize:20, lineHeight:1 }}>✕</button>
+            </div>
+
+            <div style={{ marginBottom:14 }}>
+              <label style={{ fontSize:11, fontWeight:700, color:TEXT_MUTED, textTransform:"uppercase", letterSpacing:1, display:"block", marginBottom:6 }}>Nombre de la carrera</label>
+              <input type="text" placeholder="ej: Maratón de Buenos Aires"
+                value={configDraft ? configDraft.raceName : config.raceName}
+                onChange={e => setConfigDraft(prev => ({ ...(prev || config), raceName: e.target.value }))}
+                style={{ width:"100%", background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", color:TEXT_PRIMARY, borderRadius:10, padding:"10px 14px", fontSize:13, colorScheme:"dark", outline:"none" }}
+              />
+            </div>
+
+            <div style={{ marginBottom:14 }}>
+              <label style={{ fontSize:11, fontWeight:700, color:TEXT_MUTED, textTransform:"uppercase", letterSpacing:1, display:"block", marginBottom:6 }}>Fecha</label>
+              <input type="date"
+                value={configDraft ? configDraft.raceDate : config.raceDate}
+                onChange={e => setConfigDraft(prev => ({ ...(prev || config), raceDate: e.target.value }))}
+                style={{ width:"100%", background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", color:TEXT_PRIMARY, borderRadius:10, padding:"10px 14px", fontSize:13, colorScheme:"dark", outline:"none" }}
+              />
+            </div>
+
+            <div style={{ marginBottom:22 }}>
+              <label style={{ fontSize:11, fontWeight:700, color:TEXT_MUTED, textTransform:"uppercase", letterSpacing:1, display:"block", marginBottom:8 }}>Distancia</label>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:6 }}>
+                {RACE_DISTANCES.map(d => {
+                  const cur = configDraft ? configDraft.raceDist : config.raceDist;
+                  const active = Math.abs(cur - d.value) < 0.1;
+                  return (
+                    <button key={d.value} onClick={() => setConfigDraft(prev => ({ ...(prev || config), raceDist: d.value }))}
+                      style={{ background: active ? LIME : "rgba(255,255,255,0.05)", border:`1px solid ${active ? LIME : "rgba(255,255,255,0.08)"}`, color: active ? "#000" : TEXT_MUTED, borderRadius:8, padding:"9px 0", fontSize:12, cursor:"pointer", fontWeight: active ? 700 : 400 }}>
+                      {d.label.split(" ")[0]}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <button
+              onClick={() => { if (configDraft) { setConfig(configDraft); setConfigDraft(null); } setShowConfig(false); }}
+              style={{ width:"100%", background:LIME, border:"none", color:"#000", borderRadius:10, padding:"12px 0", fontSize:14, fontWeight:700, cursor:"pointer" }}>
+              Guardar cambios
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── CSV INPUT (hidden, triggered from footer) ── */}
       <input id="csv-input" type="file" accept=".csv" style={{ display:"none" }} onChange={e => handleFile(e.target.files[0])} />
@@ -634,12 +866,12 @@ Ejemplo de formato esperado:
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Activity size={22} color={ORANGE} />
           <span style={{ fontSize: 22, fontWeight: 900, letterSpacing: -0.5 }}>Runalyze</span>
-          <span style={{ fontSize: 12, color: TEXT_MUTED, marginLeft: 4 }}>Strava · {filtered.length}/{activeData.length} actividades</span>
+          <span style={{ fontSize: 12, color: TEXT_MUTED, marginLeft: 4 }}>· {filtered.length}/{activeData.length} actividades</span>
         </div>
         <div style={{ display:"flex", gap:8 }}>
-        <button onClick={() => { setConfigDraft(null); setShowConfig(true); }}
+        <button onClick={() => { setCsvData(null); setShowDemo(false); setHomeForm({ userName:"", raceName:"Maratón de Buenos Aires", raceDate:"2026-09-27", raceDist:42.195, fcMax:181, age:"", sex:"F" }); }}
           style={{ ...inputStyle, display:"flex", alignItems:"center", gap:6 }}>
-          <RefreshCw size={13} /> Configurar
+          <RefreshCw size={13} /> Reset
         </button>
         <button
           onClick={() => setImperial(!imperial)}
@@ -710,6 +942,63 @@ Ejemplo de formato esperado:
             <span style={{ fontSize: 32, fontWeight: 900, color: TEXT_PRIMARY, lineHeight: 1, letterSpacing: -1 }}>{k.value}</span>
           </div>
         ))}
+      </div>
+
+      {/* ── COUNTDOWN ── */}
+      <div style={{ marginTop:0, marginBottom:16, background:"rgba(191,95,255,0.15)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)", border:"1px solid rgba(191,95,255,0.4)", borderRadius:16, padding:"24px", position:"relative", overflow:"hidden" }}>
+        <div style={{ position:"absolute", top:0, right:0, width:200, height:200, background:LIME, opacity:.03, borderRadius:"50%", transform:"translate(60px,-60px)" }} />
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:20, position:"relative" }}>
+          <div>
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+              <Timer size={18} color={VIOLET} />
+              <span style={{ fontSize:11, color:TEXT_MUTED, textTransform:"uppercase", letterSpacing:1 }}>Próxima carrera</span>
+            </div>
+            <div style={{ fontSize:22, fontWeight:800, color:TEXT_PRIMARY, lineHeight:1.1 }}>{config.raceName}</div>
+            <div style={{ fontSize:13, color:TEXT_MUTED, marginTop:4 }}>
+              {RACE_DISTANCES.find(d => Math.abs(d.value - config.raceDist) < 0.1)?.label.split(" ")[0] || `${config.raceDist}km`} · {new Date(config.raceDate + "T12:00:00").toLocaleDateString("es-AR", { day:"numeric", month:"long", year:"numeric" })}
+            </div>
+          </div>
+          <button onClick={() => { setConfigDraft(null); setShowConfig(true); }}
+            style={{ background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", color:TEXT_MUTED, borderRadius:8, padding:"6px 12px", fontSize:12, cursor:"pointer", display:"flex", alignItems:"center", gap:6, flexShrink:0 }}>
+            <RefreshCw size={12} /> Editar
+          </button>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginBottom:16, position:"relative" }}>
+          {[
+            { val: countdown.days,  label: "días",     big: true },
+            { val: countdown.hours, label: "horas",    big: false },
+            { val: countdown.mins,  label: "minutos",  big: false },
+            { val: countdown.secs,  label: "segundos", big: false },
+          ].map((u, i) => (
+            <div key={i} style={{ background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:12, padding:"16px 0", textAlign:"center" }}>
+              <div style={{ fontSize: 36, fontWeight:900, color: u.big ? VIOLET : TEXT_PRIMARY, lineHeight:1, fontVariantNumeric:"tabular-nums", letterSpacing:-1 }}>
+                {String(u.val).padStart(2,"0")}
+              </div>
+              <div style={{ fontSize:10, color:TEXT_MUTED, marginTop:6, textTransform:"uppercase", letterSpacing:1 }}>{u.label}</div>
+            </div>
+          ))}
+        </div>
+        {(() => {
+          const raceDate = new Date(config.raceDate + "T00:00:00");
+          const startDate = new Date(TODAY);
+          const total = raceDate - startDate;
+          const elapsed = new Date() - startDate;
+          const pct = Math.max(0, Math.min(100, (elapsed / total) * 100));
+          const daysLeft = Math.round((raceDate - new Date()) / 86400000);
+          return (
+            <div style={{ position:"relative" }}>
+              <div style={{ background:"rgba(255,255,255,0.08)", borderRadius:8, height:8, overflow:"hidden" }}>
+                <div style={{ height:"100%", width:`${pct}%`, background:`linear-gradient(90deg, ${VIOLET}88, ${VIOLET})`, borderRadius:8, transition:"width 1s linear" }} />
+              </div>
+              <div style={{ display:"flex", justifyContent:"space-between", marginTop:6 }}>
+                <span style={{ fontSize:11, color:TEXT_MUTED }}>Hoy · {new Date().toLocaleDateString("es-AR",{day:"numeric",month:"short"})}</span>
+                <span style={{ fontSize:11, color: daysLeft < 14 ? LIME : TEXT_MUTED, fontWeight: daysLeft < 14 ? 600 : 400 }}>
+                  {daysLeft > 0 ? `${daysLeft} días para correr` : "¡Es hoy!"}
+                </span>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Weekly Volume Chart */}
@@ -889,172 +1178,6 @@ Ejemplo de formato esperado:
             </div>
           )}
         </div>
-      </div>
-
-      {/* ── CONFIG MODAL ── */}
-      {showConfig && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center" }}
-          onClick={() => setShowConfig(false)}>
-          <div style={{ background:"#1e1e1e", border:`1px solid rgba(255,255,255,0.08)`, borderRadius:16, padding:"28px 32px", width:420, maxWidth:"90vw" }}
-            onClick={e => e.stopPropagation()}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:24 }}>
-              <span style={{ fontSize:16, fontWeight:700, color:TEXT_PRIMARY }}>Configuración</span>
-              <button onClick={() => setShowConfig(false)} style={{ background:"transparent", border:"none", color:TEXT_MUTED, cursor:"pointer", fontSize:20, lineHeight:1 }}>✕</button>
-            </div>
-            {[
-              { label:"Nombre de la carrera", key:"raceName", type:"text", placeholder:"ej: Maratón de Buenos Aires" },
-              { label:"Fecha de la carrera", key:"raceDate", type:"date" },
-              { label:"FC Máxima (bpm)", key:"fcMax", type:"number", placeholder:"ej: 181" },
-              { label:"Edad", key:"age", type:"number", placeholder:"ej: 34" },
-            ].map(f => (
-              <div key={f.key} style={{ marginBottom:16 }}>
-                <label style={{ fontSize:12, color:TEXT_MUTED, display:"block", marginBottom:5 }}>{f.label}</label>
-                <input
-                  type={f.type}
-                  value={configDraft ? configDraft[f.key] : config[f.key]}
-                  placeholder={f.placeholder}
-                  onChange={e => setConfigDraft(prev => ({ ...(prev || config), [f.key]: f.type==="number" ? parseFloat(e.target.value)||0 : e.target.value }))}
-                  style={{ width:"100%", background:"#2a2a2a", border:`1px solid rgba(255,255,255,0.08)`, color:TEXT_PRIMARY, borderRadius:8, padding:"8px 12px", fontSize:13, colorScheme:"dark" }}
-                />
-              </div>
-            ))}
-            <div style={{ marginBottom:20 }}>
-              <label style={{ fontSize:12, color:TEXT_MUTED, display:"block", marginBottom:5 }}>Distancia de la carrera</label>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-                {RACE_DISTANCES.map(d => {
-                  const cur = configDraft ? configDraft.raceDist : config.raceDist;
-                  const active = Math.abs(cur - d.value) < 0.1;
-                  return (
-                    <button key={d.value} onClick={() => setConfigDraft(prev => ({ ...(prev || config), raceDist: d.value }))}
-                      style={{ background: active ? LIME : "rgba(255,255,255,0.05)", border:`1px solid ${active ? LIME : "rgba(255,255,255,0.08)"}`, color: active ? "#000" : TEXT_MUTED, borderRadius:8, padding:"8px 12px", fontSize:12, cursor:"pointer", fontWeight: active ? 600 : 400 }}>
-                      {d.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            <div style={{ marginBottom:20 }}>
-              <label style={{ fontSize:12, color:TEXT_MUTED, display:"block", marginBottom:5 }}>Sexo biológico</label>
-              <div style={{ display:"flex", gap:8 }}>
-                {[{label:"Femenino", val:"F"},{label:"Masculino", val:"M"}].map(s => {
-                  const cur = configDraft ? configDraft.sex : config.sex;
-                  return (
-                    <button key={s.val} onClick={() => setConfigDraft(prev => ({ ...(prev || config), sex: s.val }))}
-                      style={{ flex:1, background: cur===s.val ? LIME : "rgba(255,255,255,0.05)", border:`1px solid ${cur===s.val ? LIME : "rgba(255,255,255,0.08)"}`, color: cur===s.val ? "#000" : TEXT_MUTED, borderRadius:8, padding:"8px 12px", fontSize:12, cursor:"pointer" }}>
-                      {s.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            <button
-              onClick={() => { if (configDraft) { setConfig(configDraft); setConfigDraft(null); } setShowConfig(false); }}
-              style={{ width:"100%", background:LIME, border:"none", color:"#000", borderRadius:10, padding:"12px 0", fontSize:14, fontWeight:700, cursor:"pointer" }}>
-              Guardar cambios
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── COUNTDOWN ── */}
-      <div style={{ marginTop:16, background:"linear-gradient(135deg,#1a1a1a 0%,#242424 100%)", border:`1px solid rgba(255,255,255,0.08)`, borderRadius:16, padding:"24px", position:"relative", overflow:"hidden" }}>
-        <div style={{ position:"absolute", top:0, right:0, width:200, height:200, background:ORANGE, opacity:0.04, borderRadius:"50%", transform:"translate(60px,-60px)" }} />
-        <div style={{ position:"absolute", bottom:0, left:0, width:120, height:120, background:ORANGE, opacity:0.03, borderRadius:"50%", transform:"translate(-40px,40px)" }} />
-
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:20, position:"relative" }}>
-          <div>
-            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
-              <Timer size={18} color={ORANGE} />
-              <span style={{ fontSize:11, color:TEXT_MUTED, textTransform:"uppercase", letterSpacing:1 }}>Próxima carrera</span>
-            </div>
-            <div style={{ fontSize:22, fontWeight:800, color:TEXT_PRIMARY, lineHeight:1.1 }}>{config.raceName}</div>
-            <div style={{ fontSize:13, color:TEXT_MUTED, marginTop:4 }}>
-              {RACE_DISTANCES.find(d => Math.abs(d.value - config.raceDist) < 0.1)?.label.split(" ")[0] || `${config.raceDist}km`} · {new Date(config.raceDate + "T12:00:00").toLocaleDateString("es-AR", { day:"numeric", month:"long", year:"numeric" })}
-            </div>
-          </div>
-          <button onClick={() => { setConfigDraft(null); setShowConfig(true); }}
-            style={{ background:"#2a2a2a", border:`1px solid rgba(255,255,255,0.08)`, color:TEXT_MUTED, borderRadius:8, padding:"6px 12px", fontSize:12, cursor:"pointer", display:"flex", alignItems:"center", gap:6, flexShrink:0 }}>
-            <RefreshCw size={12} /> Editar
-          </button>
-        </div>
-
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginBottom:16, position:"relative" }}>
-          {[
-            { val: countdown.days,  label: "días",     big: true },
-            { val: countdown.hours, label: "horas",    big: false },
-            { val: countdown.mins,  label: "minutos",  big: false },
-            { val: countdown.secs,  label: "segundos", big: false },
-          ].map((u, i) => (
-            <div key={i} style={{ background: u.big ? "rgba(198,241,53,0.08)" : "rgba(255,255,255,0.04)", border:`1px solid ${u.big ? ORANGE+"55" : BORDER}`, borderRadius:12, padding:"16px 0", textAlign:"center" }}>
-              <div style={{ fontSize: u.big ? 56 : 36, fontWeight:900, color: u.big ? LIME : TEXT_PRIMARY, letterSpacing: -2, lineHeight:1, fontVariantNumeric:"tabular-nums", letterSpacing:-1 }}>
-                {String(u.val).padStart(2,"0")}
-              </div>
-              <div style={{ fontSize:10, color:TEXT_MUTED, marginTop:6, textTransform:"uppercase", letterSpacing:1 }}>{u.label}</div>
-            </div>
-          ))}
-        </div>
-
-        {(() => {
-          const raceDate = new Date(config.raceDate + "T00:00:00");
-          const startDate = new Date(TODAY);
-          const total = raceDate - startDate;
-          const elapsed = new Date() - startDate;
-          const pct = Math.max(0, Math.min(100, (elapsed / total) * 100));
-          const daysLeft = Math.round((raceDate - new Date()) / 86400000);
-          return (
-            <div style={{ position:"relative" }}>
-              <div style={{ background:"#2a2a2a", borderRadius:8, height:8, overflow:"hidden" }}>
-                <div style={{ height:"100%", width:`${pct}%`, background:`linear-gradient(90deg, ${LIME}88, ${LIME})`, borderRadius:8, transition:"width 1s linear" }} />
-              </div>
-              <div style={{ display:"flex", justifyContent:"space-between", marginTop:6 }}>
-                <span style={{ fontSize:11, color:TEXT_MUTED }}>Hoy · {new Date().toLocaleDateString("es-AR",{day:"numeric",month:"short"})}</span>
-                <span style={{ fontSize:11, color: daysLeft < 14 ? ORANGE : TEXT_MUTED, fontWeight: daysLeft < 14 ? 600 : 400 }}>
-                  {daysLeft > 0 ? `${daysLeft} días para correr` : "¡Es hoy!"}
-                </span>
-              </div>
-            </div>
-          );
-        })()}
-      </div>
-
-      {/* ── HR ZONES ── */}
-      <div style={{ ...cardStyle, marginTop: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
-          <Flame size={16} color="#e84800" />
-          <span style={{ fontSize: 14, fontWeight: 600 }}>Zonas de frecuencia cardíaca</span>
-          <span style={{ fontSize: 11, color: TEXT_MUTED, marginLeft: 2 }}>· FC máx {config.fcMax} bpm</span>
-        </div>
-        {(() => {
-          const totalRuns = activeData.filter(a => a.avg_hr > 0);
-          const zoneCounts = HR_ZONES.map(z => {
-            const lo = Math.round(config.fcMax * z.pct[0]);
-            const hi = Math.round(config.fcMax * z.pct[1]);
-            const count = totalRuns.filter(a => a.avg_hr >= lo && a.avg_hr < hi).length;
-            return { ...z, lo, hi, count };
-          });
-          const maxCount = Math.max(...zoneCounts.map(z => z.count), 1);
-          return (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {zoneCounts.map((z, i) => (
-                <div key={i}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: z.color, width: 20 }}>{z.zone}</span>
-                    <span style={{ fontSize: 12, color: TEXT_PRIMARY, width: 110 }}>{z.name}</span>
-                    <span style={{ fontSize: 11, color: TEXT_MUTED, width: 80 }}>{z.lo}–{z.hi} bpm</span>
-                    <div style={{ flex: 1, background: "#2a2a2a", borderRadius: 4, height: 16, overflow: "hidden" }}>
-                      <div style={{ height: "100%", width: `${(z.count / maxCount) * 100}%`, background: z.color + "bb", borderRadius: 4, minWidth: z.count > 0 ? 6 : 0, transition: "width 0.5s ease" }} />
-                    </div>
-                    <span style={{ fontSize: 12, color: TEXT_MUTED, width: 32, textAlign: "right" }}>{z.count}</span>
-                  </div>
-                  <p style={{ fontSize: 11, color: TEXT_MUTED, marginLeft: 130, marginBottom: 0 }}>{z.desc}</p>
-                </div>
-              ))}
-              <p style={{ fontSize: 11, color: TEXT_MUTED, marginTop: 6 }}>
-                Basado en {totalRuns.length} actividades con datos de FC. {activeData.length - totalRuns.length} actividades sin datos de FC no incluidas.
-              </p>
-            </div>
-          );
-        })()}
       </div>
 
       {/* ── RACE TIME PREDICTOR ── */}
