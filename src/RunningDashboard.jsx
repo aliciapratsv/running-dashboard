@@ -285,8 +285,7 @@ Datos del corredor (período ${dateFrom} al ${dateTo}):
       while (true) {
         const { done, value } = await reader.read(); if (done) break;
         buffer += decoder.decode(value,{stream:true});
-        const lines = buffer.split("
-"); buffer = lines.pop();
+        const lines = buffer.split("\n"); buffer = lines.pop();
         for (const line of lines) {
           if (!line.startsWith("data: ")) continue; const json = line.slice(6).trim(); if (json === "[DONE]") continue;
           try { const ev = JSON.parse(json); if (ev.type === "content_block_delta" && ev.delta?.type === "text_delta") {
