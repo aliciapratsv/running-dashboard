@@ -1,27 +1,5 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Runalyze</title>
-  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-  <script src="https://unpkg.com/@babel/standalone@7.23.10/babel.min.js"></script>
-  <script src="https://unpkg.com/recharts@2.12.0/umd/Recharts.js"></script>
-  <script src="https://unpkg.com/lucide-react@0.383.0/dist/umd/lucide-react.js"></script>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: #0d0d0d; font-family: system-ui, sans-serif; }
-    input[type=date]::-webkit-calendar-picker-indicator { filter: invert(1); }
-  </style>
-</head>
-<body>
-  <div id="root"></div>
-  <script type="text/babel">
-    const { useState, useMemo, useEffect, useRef, useCallback } = React;
-    const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, ReferenceLine } = Recharts;
-    const { Activity, TrendingUp, Mountain, Zap, Filter, Brain, RefreshCw, Heart, Timer, Target, Flame } = lucide;
-
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { Activity, TrendingUp, Mountain, Zap, Filter, Brain, RefreshCw, Heart, Timer, Target, Flame } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, ReferenceLine
@@ -56,7 +34,106 @@ const HR_ZONES = [
 ];
 const RIEGEL_EXP = 1.06;
 
-function RunningDashboard() {
+
+const CompBlock = ({ compA, setCompA, compB, setCompB, searchA, setSearchA, searchB, setSearchB, openA, setOpenA, openB, setOpenB, activeData, LIME, VIOLET, TEXT_PRIMARY, TEXT_MUTED, cardStyle }) => {
+  const fmtTime = (s) => { if (!s) return "—"; const h=Math.floor(s/3600); const m=Math.floor((s%3600)/60); const ss=Math.round(s%60); return h>0 ? `${h}:${String(m).padStart(2,"0")}:${String(ss).padStart(2,"0")}` : `${m}:${String(ss).padStart(2,"0")}`; };
+  const fmtP = (p) => { if (!p||p<=0) return "—"; const m=Math.floor(p); const s=Math.round((p-m)*60); return `${m}:${s.toString().padStart(2,"0")}`; };
+  const listA = activeData.filter(a => a.name.toLowerCase().includes(searchA.toLowerCase()) || a.date.includes(searchA)).slice(0,8);
+  const listB = activeData.filter(a => a.name.toLowerCase().includes(searchB.toLowerCase()) || a.date.includes(searchB)).slice(0,8);
+  const diff = (a, b, key) => { if (!a||!b) return null; const d = a[key] - b[key]; return { d, better: d < 0 }; };
+
+  const MetricRow = ({ label, valA, valB, diffResult }) => (
+    <div style={{ display:"grid", gridTemplateColumns:"1fr auto 1fr", alignItems:"center", gap:8, padding:"10px 0", borderBottom:"1px solid rgba(255,255,255,0.05)" }}>
+      <div style={{ textAlign:"right" }}>
+        <span style={{ fontSize:15, fontWeight:700, color: diffResult?.better === true ? LIME : TEXT_PRIMARY }}>{valA}</span>
+        {diffResult?.better === true && <span style={{ fontSize:10, color:LIME, marginLeft:4 }}>▲</span>}
+      </div>
+      <span style={{ fontSize:11, color:TEXT_MUTED, textAlign:"center", minWidth:80 }}>{label}</span>
+      <div style={{ textAlign:"left" }}>
+        {diffResult?.better === false && <span style={{ fontSize:10, color:LIME, marginRight:4 }}>▲</span>}
+        <span style={{ fontSize:15, fontWeight:700, color: diffResult?.better === false ? LIME : TEXT_PRIMARY }}>{valB}</span>
+      </div>
+    </div>
+  );
+
+  const Picker = ({ label, selected, onSelect, search, setSearch, list, open, setOpen, side }) => (
+    <div style={{ flex:1, position:"relative" }}>
+      <div style={{ fontSize:11, color:TEXT_MUTED, marginBottom:6, textTransform:"uppercase", letterSpacing:0.5 }}>{label}</div>
+      <div onClick={() => setOpen(o => !o)} style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${selected ? LIME+"55" : "rgba(255,255,255,0.1)"}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", minHeight:52 }}>
+        {selected ? (
+          <><p style={{ margin:0, fontSize:12, fontWeight:600, color:TEXT_PRIMARY, lineHeight:1.3 }}>{selected.name.length > 30 ? selected.name.slice(0,30)+"…" : selected.name}</p><p style={{ margin:"2px 0 0", fontSize:11, color:TEXT_MUTED }}>{selected.date} · {selected.dist_km}km</p></>
+        ) : (
+          <p style={{ margin:0, fontSize:12, color:TEXT_MUTED }}>Elegir actividad...</p>
+        )}
+      </div>
+      {open && (
+        <div style={{ position:"absolute", top:"100%", [side==="left"?"left":"right"]:0, width:260, background:"rgba(20,20,20,0.98)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:12, zIndex:100, marginTop:4, overflow:"hidden" }}>
+          <input autoFocus type="text" placeholder="Buscar por nombre o fecha..." value={search} onChange={e => setSearch(e.target.value)}
+            style={{ width:"100%", background:"rgba(255,255,255,0.06)", border:"none", borderBottom:"1px solid rgba(255,255,255,0.08)", color:TEXT_PRIMARY, padding:"10px 12px", fontSize:12, outline:"none", colorScheme:"dark" }} />
+          <div style={{ maxHeight:200, overflowY:"auto" }}>
+            {list.length === 0 && <p style={{ fontSize:12, color:TEXT_MUTED, padding:"10px 12px", margin:0 }}>Sin resultados</p>}
+            {list.map(a => (
+              <div key={a.id} onClick={() => { onSelect(a); setOpen(false); setSearch(""); }} style={{ padding:"9px 12px", cursor:"pointer", borderBottom:"1px solid rgba(255,255,255,0.04)" }}>
+                <p style={{ margin:0, fontSize:12, fontWeight:600, color:TEXT_PRIMARY }}>{a.name.length > 32 ? a.name.slice(0,32)+"…" : a.name}</p>
+                <p style={{ margin:"2px 0 0", fontSize:11, color:TEXT_MUTED }}>{a.date} · {a.dist_km}km · {fmtP(a.pace)}/km</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div style={{ ...cardStyle, marginBottom:16 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:20 }}>
+        <span style={{ fontSize:16 }}>⚡</span>
+        <span style={{ fontSize:14, fontWeight:600, color:TEXT_PRIMARY }}>Comparador de entrenos</span>
+        <span style={{ fontSize:11, color:TEXT_MUTED, marginLeft:2 }}>· mismo circuito, distinto día</span>
+      </div>
+      <div style={{ display:"flex", gap:12, marginBottom:20, position:"relative", alignItems:"flex-start" }}>
+        <Picker label="Entreno A" selected={compA} onSelect={setCompA} search={searchA} setSearch={setSearchA} list={listA} open={openA} setOpen={setOpenA} side="left" />
+        <div style={{ display:"flex", alignItems:"center", paddingTop:36 }}><span style={{ fontSize:16, color:TEXT_MUTED }}>vs</span></div>
+        <Picker label="Entreno B" selected={compB} onSelect={setCompB} search={searchB} setSearch={setSearchB} list={listB} open={openB} setOpen={setOpenB} side="right" />
+      </div>
+      {compA && compB ? (
+        <>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr auto 1fr", gap:8, marginBottom:4 }}>
+            <div style={{ textAlign:"right" }}><span style={{ fontSize:11, color:LIME, fontWeight:600 }}>{compA.date}</span></div>
+            <div style={{ minWidth:80 }}/>
+            <div style={{ textAlign:"left" }}><span style={{ fontSize:11, color:TEXT_MUTED, fontWeight:600 }}>{compB.date}</span></div>
+          </div>
+          <MetricRow label="Ritmo promedio" valA={`${fmtP(compA.pace)}/km`} valB={`${fmtP(compB.pace)}/km`} diffResult={diff(compA, compB, "pace")} />
+          <MetricRow label="Tiempo total" valA={fmtTime(compA.moving_time_s)} valB={fmtTime(compB.moving_time_s)} diffResult={diff(compA, compB, "moving_time_s")} />
+          <MetricRow label="Distancia" valA={`${compA.dist_km} km`} valB={`${compB.dist_km} km`} diffResult={null} />
+          <MetricRow label="FC promedio" valA={compA.avg_hr > 0 ? `${Math.round(compA.avg_hr)} bpm`:"—"} valB={compB.avg_hr > 0 ? `${Math.round(compB.avg_hr)} bpm`:"—"} diffResult={compA.avg_hr>0 && compB.avg_hr>0 ? diff(compA, compB, "avg_hr") : null} />
+          {(() => {
+            const paceDiff = compB.pace - compA.pace;
+            const timeDiff = compB.moving_time_s - compA.moving_time_s;
+            const improved = paceDiff > 0;
+            const absPace = Math.abs(paceDiff);
+            const paceStr = `${Math.floor(absPace)}:${String(Math.round((absPace-Math.floor(absPace))*60)).padStart(2,"0")}`;
+            const absTime = Math.abs(timeDiff);
+            const timeStr = absTime >= 60 ? `${Math.floor(absTime/60)} min ${Math.round(absTime%60)} seg` : `${Math.round(absTime)} seg`;
+            return (
+              <div style={{ marginTop:14, background: improved ? "rgba(198,241,53,0.07)":"rgba(191,95,255,0.07)", border:`1px solid ${improved ? LIME+"33":VIOLET+"33"}`, borderRadius:10, padding:"12px 14px", textAlign:"center" }}>
+                <p style={{ margin:0, fontSize:13, color: improved ? LIME:VIOLET, fontWeight:700 }}>
+                  {improved ? `¡Mejoraste ${paceStr} min/km y ${timeStr} más rápido! 🎉` : paceDiff < 0 ? `Entreno A fue ${paceStr} min/km más rápido y ${timeStr} menos` : "Ritmos idénticos — gran consistencia 💪"}
+                </p>
+              </div>
+            );
+          })()}
+        </>
+      ) : (
+        <div style={{ textAlign:"center", padding:"24px 0" }}>
+          <p style={{ fontSize:13, color:TEXT_MUTED, margin:0 }}>Seleccioná dos actividades para comparar</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default function RunningDashboard() {
   const [csvData, setCsvData] = useState(null);
   const [showDemo, setShowDemo] = useState(false);
   const [homeForm, setHomeForm] = useState({ userName:"", raceName:"Maratón de Buenos Aires", raceDate:"2026-09-27", raceDist:42.195, fcMax:181, age:"", sex:"F" });
@@ -685,131 +762,18 @@ Datos del corredor (período ${dateFrom} al ${dateTo}):
             })()}
 
             {/* ── COMPARADOR DE ENTRENOS ── */}
-            {(() => {
-              const fmtTime = (s) => { if (!s) return "—"; const h=Math.floor(s/3600); const m=Math.floor((s%3600)/60); const ss=Math.round(s%60); return h>0 ? `${h}:${String(m).padStart(2,"0")}:${String(ss).padStart(2,"0")}` : `${m}:${String(ss).padStart(2,"0")}`; };
-              const fmtP = (p) => { if (!p||p<=0) return "—"; const m=Math.floor(p); const s=Math.round((p-m)*60); return `${m}:${s.toString().padStart(2,"0")}`; };
+            <CompBlock
+              compA={compA} setCompA={setCompA}
+              compB={compB} setCompB={setCompB}
+              searchA={searchA} setSearchA={setSearchA}
+              searchB={searchB} setSearchB={setSearchB}
+              openA={openA} setOpenA={setOpenA}
+              openB={openB} setOpenB={setOpenB}
+              activeData={activeData}
+              LIME={LIME} VIOLET={VIOLET} TEXT_PRIMARY={TEXT_PRIMARY} TEXT_MUTED={TEXT_MUTED}
+              cardStyle={cardStyle}
+            />
 
-              const listA = activeData.filter(a => a.name.toLowerCase().includes(searchA.toLowerCase()) || a.date.includes(searchA)).slice(0,8);
-              const listB = activeData.filter(a => a.name.toLowerCase().includes(searchB.toLowerCase()) || a.date.includes(searchB)).slice(0,8);
-
-              const diff = (a, b, key, invert=false) => {
-                if (!a||!b) return null;
-                const d = a[key] - b[key];
-                const better = invert ? d > 0 : d < 0;
-                return { d, better };
-              };
-
-              const MetricRow = ({ label, valA, valB, diffResult }) => (
-                <div style={{ display:"grid", gridTemplateColumns:"1fr auto 1fr", alignItems:"center", gap:8, padding:"10px 0", borderBottom:"1px solid rgba(255,255,255,0.05)" }}>
-                  <div style={{ textAlign:"right" }}>
-                    <span style={{ fontSize:15, fontWeight:700, color: diffResult?.better === true ? LIME : TEXT_PRIMARY }}>{valA}</span>
-                    {diffResult?.better === true && <span style={{ fontSize:10, color:LIME, marginLeft:4 }}>▲</span>}
-                  </div>
-                  <span style={{ fontSize:11, color:TEXT_MUTED, textAlign:"center", minWidth:80 }}>{label}</span>
-                  <div style={{ textAlign:"left" }}>
-                    {diffResult?.better === false && <span style={{ fontSize:10, color:LIME, marginRight:4 }}>▲</span>}
-                    <span style={{ fontSize:15, fontWeight:700, color: diffResult?.better === false ? LIME : TEXT_PRIMARY }}>{valB}</span>
-                  </div>
-                </div>
-              );
-
-              const Picker = ({ label, selected, onSelect, search, setSearch, list, open, setOpen, side }) => (
-                <div style={{ flex:1, position:"relative" }}>
-                  <div style={{ fontSize:11, color:TEXT_MUTED, marginBottom:6, textTransform:"uppercase", letterSpacing:0.5 }}>{label}</div>
-                  <div onClick={() => setOpen(o => !o)} style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${selected ? LIME+"55" : "rgba(255,255,255,0.1)"}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", minHeight:52 }}>
-                    {selected ? (
-                      <>
-                        <p style={{ margin:0, fontSize:12, fontWeight:600, color:TEXT_PRIMARY, lineHeight:1.3 }}>{selected.name.length > 30 ? selected.name.slice(0,30)+"…" : selected.name}</p>
-                        <p style={{ margin:"2px 0 0", fontSize:11, color:TEXT_MUTED }}>{selected.date} · {selected.dist_km}km</p>
-                      </>
-                    ) : (
-                      <p style={{ margin:0, fontSize:12, color:TEXT_MUTED }}>Elegir actividad...</p>
-                    )}
-                  </div>
-                  {open && (
-                    <div style={{ position:"absolute", top:"100%", [side==="left"?"left":"right"]:0, width:260, background:"rgba(20,20,20,0.98)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:12, zIndex:100, marginTop:4, overflow:"hidden" }}>
-                      <input autoFocus type="text" placeholder="Buscar por nombre o fecha..." value={search} onChange={e => setSearch(e.target.value)}
-                        style={{ width:"100%", background:"rgba(255,255,255,0.06)", border:"none", borderBottom:"1px solid rgba(255,255,255,0.08)", color:TEXT_PRIMARY, padding:"10px 12px", fontSize:12, outline:"none", colorScheme:"dark" }} />
-                      <div style={{ maxHeight:200, overflowY:"auto" }}>
-                        {list.length === 0 && <p style={{ fontSize:12, color:TEXT_MUTED, padding:"10px 12px", margin:0 }}>Sin resultados</p>}
-                        {list.map(a => (
-                          <div key={a.id} onClick={() => { onSelect(a); setOpen(false); setSearch(""); }}
-                            style={{ padding:"9px 12px", cursor:"pointer", borderBottom:"1px solid rgba(255,255,255,0.04)" }}
-                            onMouseEnter={e => e.currentTarget.style.background="rgba(255,255,255,0.05)"}
-                            onMouseLeave={e => e.currentTarget.style.background="transparent"}>
-                            <p style={{ margin:0, fontSize:12, fontWeight:600, color:TEXT_PRIMARY }}>{a.name.length > 32 ? a.name.slice(0,32)+"…" : a.name}</p>
-                            <p style={{ margin:"2px 0 0", fontSize:11, color:TEXT_MUTED }}>{a.date} · {a.dist_km}km · {fmtP(a.pace)}/km</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-
-              return (
-                <div style={{ ...cardStyle, marginBottom:16 }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:20 }}>
-                    <Target size={16} color={LIME} />
-                    <span style={{ fontSize:14, fontWeight:600 }}>Comparador de entrenos</span>
-                    <span style={{ fontSize:11, color:TEXT_MUTED, marginLeft:2 }}>· mismo circuito, distinto día</span>
-                  </div>
-
-                  {/* Pickers */}
-                  <div style={{ display:"flex", gap:12, marginBottom:20, position:"relative", alignItems:"flex-start" }}>
-                    <Picker label="Entreno A" selected={compA} onSelect={setCompA} search={searchA} setSearch={setSearchA} list={listA} open={openA} setOpen={setOpenA} side="left" />
-                    <div style={{ display:"flex", alignItems:"center", paddingTop:36 }}>
-                      <span style={{ fontSize:16, color:TEXT_MUTED }}>vs</span>
-                    </div>
-                    <Picker label="Entreno B" selected={compB} onSelect={setCompB} search={searchB} setSearch={setSearchB} list={listB} open={openB} setOpen={setOpenB} side="right" />
-                  </div>
-
-                  {/* Comparison results */}
-                  {compA && compB ? (
-                    <>
-                      {/* Dates header */}
-                      <div style={{ display:"grid", gridTemplateColumns:"1fr auto 1fr", gap:8, marginBottom:4 }}>
-                        <div style={{ textAlign:"right" }}><span style={{ fontSize:11, color:LIME, fontWeight:600 }}>{compA.date}</span></div>
-                        <div style={{ minWidth:80 }}/>
-                        <div style={{ textAlign:"left" }}><span style={{ fontSize:11, color:TEXT_MUTED, fontWeight:600 }}>{compB.date}</span></div>
-                      </div>
-
-                      <MetricRow label="Ritmo promedio" valA={`${fmtP(compA.pace)}/km`} valB={`${fmtP(compB.pace)}/km`} diffResult={diff(compA, compB, "pace", false)} />
-                      <MetricRow label="Tiempo total" valA={fmtTime(compA.moving_time_s)} valB={fmtTime(compB.moving_time_s)} diffResult={diff(compA, compB, "moving_time_s", false)} />
-                      <MetricRow label="Distancia" valA={`${compA.dist_km} km`} valB={`${compB.dist_km} km`} diffResult={null} />
-                      <MetricRow label="FC promedio" valA={compA.avg_hr > 0 ? `${Math.round(compA.avg_hr)} bpm` : "—"} valB={compB.avg_hr > 0 ? `${Math.round(compB.avg_hr)} bpm` : "—"} diffResult={compA.avg_hr>0 && compB.avg_hr>0 ? diff(compA, compB, "avg_hr", false) : null} />
-
-                      {/* Delta summary */}
-                      {(() => {
-                        const paceDiff = compB.pace - compA.pace;
-                        const timeDiff = compB.moving_time_s - compA.moving_time_s;
-                        const improved = paceDiff > 0;
-                        const absPace = Math.abs(paceDiff);
-                        const paceStr = `${Math.floor(absPace)}:${String(Math.round((absPace - Math.floor(absPace))*60)).padStart(2,"0")}`;
-                        const absTime = Math.abs(timeDiff);
-                        const timeStr = absTime >= 60 ? `${Math.floor(absTime/60)} min ${Math.round(absTime%60)} seg` : `${Math.round(absTime)} seg`;
-                        return (
-                          <div style={{ marginTop:14, background: improved ? "rgba(198,241,53,0.07)" : "rgba(191,95,255,0.07)", border:`1px solid ${improved ? LIME+"33" : VIOLET+"33"}`, borderRadius:10, padding:"12px 14px", textAlign:"center" }}>
-                            <p style={{ margin:0, fontSize:13, color: improved ? LIME : VIOLET, fontWeight:700 }}>
-                              {improved
-                                ? `¡Mejoraste ${paceStr} min/km y ${timeStr} más rápido! 🎉`
-                                : paceDiff < 0
-                                  ? `Entreno A fue ${paceStr} min/km más rápido y ${timeStr} menos`
-                                  : "Ritmos idénticos — gran consistencia 💪"
-                              }
-                            </p>
-                          </div>
-                        );
-                      })()}
-                    </>
-                  ) : (
-                    <div style={{ textAlign:"center", padding:"24px 0" }}>
-                      <p style={{ fontSize:13, color:TEXT_MUTED, margin:0 }}>Seleccioná dos actividades para comparar</p>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
 
             <div style={{ ...cardStyle, marginBottom:16 }}>
               <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:16 }}><Flame size={16} color="#e84800"/><span style={{ fontSize:14, fontWeight:600 }}>Zonas de frecuencia cardíaca</span><span style={{ fontSize:11, color:TEXT_MUTED }}>· FC máx {config.fcMax} bpm</span></div>
@@ -931,10 +895,3 @@ Datos del corredor (período ${dateFrom} al ${dateTo}):
     </>
   );
 }
-
-
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(React.createElement(RunningDashboard));
-  </script>
-</body>
-</html>
