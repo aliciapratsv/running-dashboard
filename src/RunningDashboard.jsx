@@ -1,5 +1,27 @@
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { Activity, TrendingUp, Mountain, Zap, Filter, Brain, RefreshCw, Heart, Timer, Target, Flame } from "lucide-react";
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Runalyze</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.23.10/babel.min.js"></script>
+  <script src="https://unpkg.com/recharts@2.12.0/umd/Recharts.js"></script>
+  <script src="https://unpkg.com/lucide-react@0.383.0/dist/umd/lucide-react.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0d0d0d; font-family: system-ui, sans-serif; }
+    input[type=date]::-webkit-calendar-picker-indicator { filter: invert(1); }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useMemo, useEffect, useRef, useCallback } = React;
+    const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, ReferenceLine } = Recharts;
+    const { Activity, TrendingUp, Mountain, Zap, Filter, Brain, RefreshCw, Heart, Timer, Target, Flame } = lucide;
+
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, ReferenceLine
@@ -34,7 +56,7 @@ const HR_ZONES = [
 ];
 const RIEGEL_EXP = 1.06;
 
-export default function RunningDashboard() {
+function RunningDashboard() {
   const [csvData, setCsvData] = useState(null);
   const [showDemo, setShowDemo] = useState(false);
   const [homeForm, setHomeForm] = useState({ userName:"", raceName:"Maratón de Buenos Aires", raceDate:"2026-09-27", raceDist:42.195, fcMax:181, age:"", sex:"F" });
@@ -84,7 +106,7 @@ export default function RunningDashboard() {
 
   const parseCSV = (text) => {
     try {
-      const lines = text.trim().split("\n");
+      const lines = text.trim().split(String.fromCharCode(10));
       const header = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g,"").replace(/\r/g,""));
       const isGarmin = header.includes("Avg Pace") || header.includes("Avg HR");
       const isStrava = header.includes("Activity Date");
@@ -175,7 +197,7 @@ export default function RunningDashboard() {
       while (true) {
         const { done, value } = await reader.read(); if (done) break;
         buffer += decoder.decode(value, { stream:true });
-        const lines = buffer.split("\n"); buffer = lines.pop();
+        const lines = buffer.split(String.fromCharCode(10)); buffer = lines.pop();
         for (const line of lines) { if (!line.startsWith("data: ")) continue; const json = line.slice(6).trim(); if (json === "[DONE]") continue; try { const ev = JSON.parse(json); if (ev.type === "content_block_delta" && ev.delta?.type === "text_delta") setInsight(prev => prev + ev.delta.text); } catch {} }
       }
     } catch { setInsightError(true); } finally { setInsightLoading(false); }
@@ -196,7 +218,7 @@ export default function RunningDashboard() {
     try {
       const res = await fetch("https://api.anthropic.com/v1/messages", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ model:"claude-sonnet-4-20250514", max_tokens:200, stream:true, messages:[{ role:"user", content:`Sos coach de running. 2 oraciones en español: explicá qué significa tener un ritmo umbral de ${fmtP2(thresholdPace)}/km (FC umbral ${thresholdFcLow}-${thresholdFcHigh} bpm, FC máx ${fcMax} bpm) y dá una implicancia práctica de entrenamiento. Sin introducciones, directo.` }] }) });
       const reader = res.body.getReader(); const decoder = new TextDecoder(); let buffer = "";
-      while (true) { const { done, value } = await reader.read(); if (done) break; buffer += decoder.decode(value,{stream:true}); const lines = buffer.split("\n"); buffer = lines.pop(); for (const line of lines) { if (!line.startsWith("data: ")) continue; const json = line.slice(6).trim(); if (json === "[DONE]") continue; try { const ev = JSON.parse(json); if (ev.type === "content_block_delta" && ev.delta?.type === "text_delta") setVo2Insight(prev => prev + ev.delta.text); } catch {} } }
+      while (true) { const { done, value } = await reader.read(); if (done) break; buffer += decoder.decode(value,{stream:true}); const lines = buffer.split(String.fromCharCode(10)); buffer = lines.pop(); for (const line of lines) { if (!line.startsWith("data: ")) continue; const json = line.slice(6).trim(); if (json === "[DONE]") continue; try { const ev = JSON.parse(json); if (ev.type === "content_block_delta" && ev.delta?.type === "text_delta") setVo2Insight(prev => prev + ev.delta.text); } catch {} } }
     } catch { setVo2Insight("No se pudo cargar la interpretación."); } finally { setVo2Loading(false); }
   }, [vo2DisplayData]);
 
@@ -285,7 +307,7 @@ Datos del corredor (período ${dateFrom} al ${dateTo}):
       while (true) {
         const { done, value } = await reader.read(); if (done) break;
         buffer += decoder.decode(value,{stream:true});
-        const lines = buffer.split("\n"); buffer = lines.pop();
+        const lines = buffer.split(String.fromCharCode(10)); buffer = lines.pop();
         for (const line of lines) {
           if (!line.startsWith("data: ")) continue; const json = line.slice(6).trim(); if (json === "[DONE]") continue;
           try { const ev = JSON.parse(json); if (ev.type === "content_block_delta" && ev.delta?.type === "text_delta") {
@@ -909,3 +931,10 @@ Datos del corredor (período ${dateFrom} al ${dateTo}):
     </>
   );
 }
+
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(React.createElement(RunningDashboard));
+  </script>
+</body>
+</html>
