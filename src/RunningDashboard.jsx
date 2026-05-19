@@ -106,8 +106,8 @@ export default function RunningDashboard() {
       };
       const parsed = [];
       for (let i = 1; i < lines.length; i++) {
-        const row = lines[i].match(/(".*?"|[^,\r\n]+|(?<=,)(?=,))/g) || [];
-        const clean = (idx) => idx >= 0 ? (row[idx] || "").replace(/^"|"$/g,"").replace(/,/g,"").trim() : "";
+        const row = lines[i].split(",").map(c => c.replace(/\r/g,"").trim());
+        const clean = (idx) => idx >= 0 ? (row[idx] || "").replace(/^"|"$/g,"").replace(/^\s+|\s+$/g,"") : "";
         const dateStr = clean(dateIdx); if (!dateStr) continue;
         let dt; try { dt = new Date(dateStr); } catch { continue; } if (isNaN(dt)) continue;
         const distRaw = parseFloat(clean(distIdx)) || 0;
