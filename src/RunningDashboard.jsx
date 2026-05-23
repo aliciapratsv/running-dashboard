@@ -15,15 +15,15 @@ const CARD_BG = "rgba(255,255,255,0.04)";
 const BORDER = "rgba(255,255,255,0.08)";
 const TEXT_PRIMARY = "#ffffff";
 const TEXT_MUTED = "#777";
-const fmtPace = (p) => { if (!p || p <= 0) return "—"; const min = Math.floor(p); const sec = Math.round((p - min) * 60); return `${min}:${sec.toString().padStart(2,"0")}`; };
+const fmtPace = (p) => { if (!p || p <= 0) return "--"; const min = Math.floor(p); const sec = Math.round((p - min) * 60); return `${min}:${sec.toString().padStart(2,"0")}`; };
 const fmtDist = (km, imperial) => imperial ? `${(km * 0.621371).toFixed(1)} mi` : `${km.toFixed(1)} km`;
 const PRESETS = [{ label:"7 días", days:7 }, { label:"30 días", days:30 }, { label:"3 meses", days:91 }, { label:"6 meses", days:182 }, { label:"1 año", days:365 }, { label:"Todo", days:null }];
 const TODAY = "2026-05-14";
 const EARLIEST = RAW_DATA[RAW_DATA.length - 1].date;
 const RACE_DISTANCES = [
   { label:"5k", value:5 }, { label:"10k", value:10 }, { label:"15k", value:15 },
-  { label:"21k — Media Maratón", value:21.0975 }, { label:"25k", value:25 }, { label:"30k", value:30 },
-  { label:"42k — Maratón", value:42.195 }, { label:"Otra", value:0 },
+  { label:"21k -- Media Maratón", value:21.0975 }, { label:"25k", value:25 }, { label:"30k", value:30 },
+  { label:"42k -- Maratón", value:42.195 }, { label:"Otra", value:0 },
 ];
 const HR_ZONES = [
   { zone:"Z1", name:"Recuperación", pct:[0.50,0.60], color:"#4a9eff", desc:"Trote muy suave, conversación fluida" },
@@ -36,8 +36,8 @@ const RIEGEL_EXP = 1.06;
 
 
 const CompBlock = ({ compA, setCompA, compB, setCompB, searchA, setSearchA, searchB, setSearchB, openA, setOpenA, openB, setOpenB, activeData, LIME, VIOLET, TEXT_PRIMARY, TEXT_MUTED, cardStyle }) => {
-  const fmtTime = (s) => { if (!s) return "—"; const h=Math.floor(s/3600); const m=Math.floor((s%3600)/60); const ss=Math.round(s%60); return h>0 ? `${h}:${String(m).padStart(2,"0")}:${String(ss).padStart(2,"0")}` : `${m}:${String(ss).padStart(2,"0")}`; };
-  const fmtP = (p) => { if (!p||p<=0) return "—"; const m=Math.floor(p); const s=Math.round((p-m)*60); return `${m}:${s.toString().padStart(2,"0")}`; };
+  const fmtTime = (s) => { if (!s) return "--"; const h=Math.floor(s/3600); const m=Math.floor((s%3600)/60); const ss=Math.round(s%60); return h>0 ? `${h}:${String(m).padStart(2,"0")}:${String(ss).padStart(2,"0")}` : `${m}:${String(ss).padStart(2,"0")}`; };
+  const fmtP = (p) => { if (!p||p<=0) return "--"; const m=Math.floor(p); const s=Math.round((p-m)*60); return `${m}:${s.toString().padStart(2,"0")}`; };
   const listA = activeData.filter(a => a.name.toLowerCase().includes(searchA.toLowerCase()) || a.date.includes(searchA)).slice(0,8);
   const listB = activeData.filter(a => a.name.toLowerCase().includes(searchB.toLowerCase()) || a.date.includes(searchB)).slice(0,8);
   const diff = (a, b, key) => { if (!a||!b) return null; const d = a[key] - b[key]; return { d, better: d < 0 }; };
@@ -106,7 +106,7 @@ const CompBlock = ({ compA, setCompA, compB, setCompB, searchA, setSearchA, sear
           <MetricRow label="Ritmo promedio" valA={`${fmtP(compA.pace)}/km`} valB={`${fmtP(compB.pace)}/km`} diffResult={diff(compA, compB, "pace")} />
           <MetricRow label="Tiempo total" valA={fmtTime(compA.moving_time_s)} valB={fmtTime(compB.moving_time_s)} diffResult={diff(compA, compB, "moving_time_s")} />
           <MetricRow label="Distancia" valA={`${compA.dist_km} km`} valB={`${compB.dist_km} km`} diffResult={null} />
-          <MetricRow label="FC promedio" valA={compA.avg_hr > 0 ? `${Math.round(compA.avg_hr)} bpm`:"—"} valB={compB.avg_hr > 0 ? `${Math.round(compB.avg_hr)} bpm`:"—"} diffResult={compA.avg_hr>0 && compB.avg_hr>0 ? diff(compA, compB, "avg_hr") : null} />
+          <MetricRow label="FC promedio" valA={compA.avg_hr > 0 ? `${Math.round(compA.avg_hr)} bpm`:"--"} valB={compB.avg_hr > 0 ? `${Math.round(compB.avg_hr)} bpm`:"--"} diffResult={compA.avg_hr>0 && compB.avg_hr>0 ? diff(compA, compB, "avg_hr") : null} />
           {(() => {
             const paceDiff = compB.pace - compA.pace;
             const timeDiff = compB.moving_time_s - compA.moving_time_s;
@@ -118,7 +118,7 @@ const CompBlock = ({ compA, setCompA, compB, setCompB, searchA, setSearchA, sear
             return (
               <div style={{ marginTop:14, background: improved ? "rgba(198,241,53,0.07)":"rgba(191,95,255,0.07)", border:`1px solid ${improved ? LIME+"33":VIOLET+"33"}`, borderRadius:10, padding:"12px 14px", textAlign:"center" }}>
                 <p style={{ margin:0, fontSize:13, color: improved ? LIME:VIOLET, fontWeight:700 }}>
-                  {improved ? `¡Mejoraste ${paceStr} min/km y ${timeStr} más rápido! 🎉` : paceDiff < 0 ? `Entreno A fue ${paceStr} min/km más rápido y ${timeStr} menos` : "Ritmos idénticos — gran consistencia 💪"}
+                  {improved ? `¡Mejoraste ${paceStr} min/km y ${timeStr} más rápido! 🎉` : paceDiff < 0 ? `Entreno A fue ${paceStr} min/km más rápido y ${timeStr} menos` : "Ritmos idénticos -- gran consistencia 💪"}
                 </p>
               </div>
             );
@@ -252,7 +252,7 @@ export default function RunningDashboard() {
       const ws = new Date(sow); ws.setDate(sow.getDate()+(parseInt(weekNum)-1)*7);
       const we = new Date(ws); we.setDate(ws.getDate()+6);
       const fmt = (d) => `${d.getDate()}/${d.getMonth()+1}`;
-      return { ...w, label:`${fmt(ws)}–${fmt(we)}`, km:imperial ? parseFloat((w.km*0.621371).toFixed(1)) : parseFloat(w.km.toFixed(1)) };
+      return { ...w, label:`${fmt(ws)}-${fmt(we)}`, km:imperial ? parseFloat((w.km*0.621371).toFixed(1)) : parseFloat(w.km.toFixed(1)) };
     });
   }, [filtered, imperial]);
 
@@ -362,8 +362,8 @@ Datos del corredor (período ${dateFrom} al ${dateTo}):
 - Promedio semanal: ${avgWeekKm.toFixed(1)} km | Semana pico: ${maxWeekKm.toFixed(1)} km
 - FC máxima: ${fcMax} bpm | Zona umbral FC: ${Math.round(fcMax*0.85)}-${Math.round(fcMax*0.90)} bpm
 - Ritmo umbral estimado: ${fmtP(thresholdPace)}/km (basado en ${z4Acts.length} actividades en Z4)
-- Salida más larga: ${longestRun ? longestRun.dist_km.toFixed(1)+"km el "+longestRun.date : "—"}
-- Próxima carrera: ${raceName} (${raceDist}km) el ${raceDate} — faltan ${daysToRace} días
+- Salida más larga: ${longestRun ? longestRun.dist_km.toFixed(1)+"km el "+longestRun.date : "--"}
+- Próxima carrera: ${raceName} (${raceDist}km) el ${raceDate} -- faltan ${daysToRace} días
 - Nombre del corredor: ${config.userName || "no especificado"}
 - Sexo: ${config.sex} | Edad: ${config.age || "no especificado"}`;
 
@@ -667,7 +667,7 @@ Datos del corredor (período ${dateFrom} al ${dateTo}):
               const tempoZonePace = estimatedThresholdPace ? estimatedThresholdPace * 1.06 : null;
               const intervalPace = estimatedThresholdPace ? estimatedThresholdPace * 0.94 : null;
 
-              const fmtP = (p) => { if (!p) return "—"; const m=Math.floor(p); const s=Math.round((p-m)*60); return `${m}:${s.toString().padStart(2,"0")}`; };
+              const fmtP = (p) => { if (!p) return "--"; const m=Math.floor(p); const s=Math.round((p-m)*60); return `${m}:${s.toString().padStart(2,"0")}`; };
 
               return (
                 <div style={{ ...cardStyle, marginBottom:16 }}>
@@ -701,11 +701,11 @@ Datos del corredor (período ${dateFrom} al ${dateTo}):
                         <div style={{ position:"absolute", left:"50%", top:0, height:"100%", width:"20%", transform:"translateX(-50%)", background:`linear-gradient(90deg, #d4c01788, ${LIME}cc, #BF5FFF88)`, borderRadius:8 }} />
                         <div style={{ position:"absolute", left:"50%", top:0, height:"100%", width:2, background:LIME, transform:"translateX(-50%)" }} />
                       </div>
-                      <span style={{ fontSize:13, fontWeight:700, color:LIME, whiteSpace:"nowrap" }}>{thresholdFcLow}–{thresholdFcHigh} bpm</span>
+                      <span style={{ fontSize:13, fontWeight:700, color:LIME, whiteSpace:"nowrap" }}>{thresholdFcLow}-{thresholdFcHigh} bpm</span>
                     </div>
                     <div style={{ display:"flex", justifyContent:"space-between", marginTop:6 }}>
                       <span style={{ fontSize:11, color:TEXT_MUTED }}>Aeróbico</span>
-                      <span style={{ fontSize:11, color:LIME, fontWeight:600 }}>Umbral (85–90% FC máx)</span>
+                      <span style={{ fontSize:11, color:LIME, fontWeight:600 }}>Umbral (85-90% FC máx)</span>
                       <span style={{ fontSize:11, color:TEXT_MUTED }}>Anaeróbico</span>
                     </div>
                   </div>
@@ -715,7 +715,7 @@ Datos del corredor (período ${dateFrom} al ${dateTo}):
                     <div style={{ background:"rgba(255,255,255,0.03)", borderRadius:10, padding:"12px 14px" }}>
                       <p style={{ fontSize:11, color:TEXT_MUTED, margin:"0 0 4px", textTransform:"uppercase", letterSpacing:0.5 }}>Actividades en Z4 analizadas</p>
                       <p style={{ fontSize:22, fontWeight:800, color:TEXT_PRIMARY, margin:0 }}>{z4Activities.length}</p>
-                      <p style={{ fontSize:11, color:TEXT_MUTED, margin:"2px 0 0" }}>FC {z4Lo}–{z4Hi} bpm</p>
+                      <p style={{ fontSize:11, color:TEXT_MUTED, margin:"2px 0 0" }}>FC {z4Lo}-{z4Hi} bpm</p>
                     </div>
                     <div style={{ background:"rgba(255,255,255,0.03)", borderRadius:10, padding:"12px 14px" }}>
                       <p style={{ fontSize:11, color:TEXT_MUTED, margin:"0 0 4px", textTransform:"uppercase", letterSpacing:0.5 }}>Método utilizado</p>
@@ -778,7 +778,7 @@ Datos del corredor (período ${dateFrom} al ${dateTo}):
             <div style={{ ...cardStyle, marginBottom:16 }}>
               <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:16 }}><Flame size={16} color="#e84800"/><span style={{ fontSize:14, fontWeight:600 }}>Zonas de frecuencia cardíaca</span><span style={{ fontSize:11, color:TEXT_MUTED }}>· FC máx {config.fcMax} bpm</span></div>
               <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-                {HR_ZONES.map(z => { const lo = Math.round(config.fcMax*z.pct[0]); const hi = Math.round(config.fcMax*z.pct[1]); const count = filtered.filter(a => a.avg_hr>0 && a.avg_hr>=lo && a.avg_hr<hi).length; const maxCount = Math.max(...HR_ZONES.map(zz => filtered.filter(a => a.avg_hr>0 && a.avg_hr>=Math.round(config.fcMax*zz.pct[0]) && a.avg_hr<Math.round(config.fcMax*zz.pct[1])).length),1); return (<div key={z.zone}><div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:3 }}><span style={{ fontSize:11, fontWeight:700, color:z.color, width:22 }}>{z.zone}</span><span style={{ fontSize:12, color:TEXT_PRIMARY, width:110 }}>{z.name}</span><span style={{ fontSize:11, color:TEXT_MUTED, width:80 }}>{lo}–{hi} bpm</span><div style={{ flex:1, background:"rgba(255,255,255,0.04)", borderRadius:4, height:16, overflow:"hidden" }}><div style={{ height:"100%", width:`${(count/maxCount)*100}%`, background:z.color+"bb", borderRadius:4, minWidth:count>0 ? 6:0 }}/></div><span style={{ fontSize:12, color:TEXT_MUTED, width:28, textAlign:"right" }}>{count}</span></div><p style={{ fontSize:11, color:TEXT_MUTED, marginLeft:212, marginBottom:0 }}>{z.desc}</p></div>); })}
+                {HR_ZONES.map(z => { const lo = Math.round(config.fcMax*z.pct[0]); const hi = Math.round(config.fcMax*z.pct[1]); const count = filtered.filter(a => a.avg_hr>0 && a.avg_hr>=lo && a.avg_hr<hi).length; const maxCount = Math.max(...HR_ZONES.map(zz => filtered.filter(a => a.avg_hr>0 && a.avg_hr>=Math.round(config.fcMax*zz.pct[0]) && a.avg_hr<Math.round(config.fcMax*zz.pct[1])).length),1); return (<div key={z.zone}><div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:3 }}><span style={{ fontSize:11, fontWeight:700, color:z.color, width:22 }}>{z.zone}</span><span style={{ fontSize:12, color:TEXT_PRIMARY, width:110 }}>{z.name}</span><span style={{ fontSize:11, color:TEXT_MUTED, width:80 }}>{lo}-{hi} bpm</span><div style={{ flex:1, background:"rgba(255,255,255,0.04)", borderRadius:4, height:16, overflow:"hidden" }}><div style={{ height:"100%", width:`${(count/maxCount)*100}%`, background:z.color+"bb", borderRadius:4, minWidth:count>0 ? 6:0 }}/></div><span style={{ fontSize:12, color:TEXT_MUTED, width:28, textAlign:"right" }}>{count}</span></div><p style={{ fontSize:11, color:TEXT_MUTED, marginLeft:212, marginBottom:0 }}>{z.desc}</p></div>); })}
               </div>
             </div>
 
